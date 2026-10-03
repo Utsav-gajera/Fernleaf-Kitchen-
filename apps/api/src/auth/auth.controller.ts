@@ -12,8 +12,9 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { Roles } from './decorators/roles.decorator';
+import { PermissionGuard } from '../authorization/guards/permission.guard';
+import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
+import { Permission } from '@project/shared';
 
 @Controller('auth')
 export class AuthController {
@@ -45,9 +46,8 @@ export class AuthController {
     };
   }
 
-  // Demonstration of Role-Based Access Control (RBAC)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions(Permission.STAFF_MANAGE)
   @Get('admin-only')
   getAdminData(@Request() req: { user: Record<string, unknown> }) {
     return {

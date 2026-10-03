@@ -9,6 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\"",
+    "test": "npm --prefix ../../packages/shared run build && node --test --require ts-node/register \"src/**/*.spec.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts"

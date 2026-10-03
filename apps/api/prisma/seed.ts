@@ -21,18 +21,55 @@ async function seqUpsert<T>(
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // ============================================================
-  // 1. STAFF USERS
-  // ============================================================
-  const staffPassword = await hash('Test@1234');
+  const { driverId, staffUsers } = await seedStaffUsers();
+  const { standardTier, enterpriseTier, partnerTier, hotStation, coldStation, grillStation } =
+    await seedReferenceData();
+  const { allergenMap, tagMap } = await seedAllergensAndTags();
+  const { acme, greenleaf, nova, domainData } = await seedCompanies({
+    driverId,
+    enterpriseTier,
+    partnerTier,
+    standardTier,
+  });
 
+  await seedDomains(domainData);
+  await seedAddresses({ acmeId: acme.id, greenleafId: greenleaf.id, novaId: nova.id });
+  await seedEmployees({ acmeId: acme.id, greenleafId: greenleaf.id, novaId: nova.id, allergenMap, tagMap });
+  const optionData = await seedOptions();
+  const { breadGroup, sideGroup, sauceGroup, proteinGroup } = await seedOptionGroups();
+  await seedDishAssignments({ breadGroup, sideGroup, sauceGroup, proteinGroup });
+  const { dishData } = await seedDishes({ hotStation, coldStation, grillStation, allergenMap, tagMap });
+  await seedCategories();
+  await seedPrices({ dishData, optionData, standardTier, enterpriseTier, partnerTier });
+  await seedPlatformSettings();
+  await seedHolidays({ greenleafId: greenleaf.id, novaId: nova.id });
+
+  console.log('\n🎉 Seed complete!');
+  console.log('');
+  console.log('  Staff logins:');
+  console.log('  ┌─────────────────────────┬───────────┬──────────┐');
+  console.log('  │ Email                   │ Password  │ Role     │');
+  console.log('  ├─────────────────────────┼───────────┼──────────┤');
+  for (const s of staffUsers) {
+    const pad = (str: string, len: number) => str.padEnd(len);
+    console.log(`  │ ${pad(s.email, 23)} │ Test@1234 │ ${pad(s.role, 8)} │`);
+  }
+  console.log('  └─────────────────────────┴───────────┴──────────┘');
+  console.log(`\n  Companies : Acme Corp · Greenleaf Studios · Nova Health Partners`);
+  console.log(`  Dishes    : ${dishData.length}`);
+  console.log(`  Options   : ${optionData.length}`);
+  console.log(`  Tiers     : Standard · Enterprise · Partner`);
+  console.log('');
+}
+
+async function seedStaffUsers() {
+  const staffPassword = await hash('Test@1234');
   const staffUsers = [
     { email: 'admin@test.com', name: 'Alex Rivera', role: StaffRole.ADMIN },
     { email: 'kitchen@test.com', name: 'Jordan Kim', role: StaffRole.KITCHEN },
     { email: 'dispatch@test.com', name: 'Sam Patel', role: StaffRole.DISPATCH },
     { email: 'driver@test.com', name: 'Chris Okafor', role: StaffRole.DRIVER },
   ];
-
   const createdStaff: Record<string, string> = {};
   for (const s of staffUsers) {
     const staff = await prisma.staffUser.upsert({
@@ -42,36 +79,29 @@ async function main() {
     });
     createdStaff[s.role] = staff.id;
   }
-
-  const driverId = createdStaff[StaffRole.DRIVER];
   console.log('  ✅ Staff users seeded');
+  return { driverId: createdStaff[StaffRole.DRIVER], staffUsers };
+}
 
-  // ============================================================
-  // 2. PRICE TIERS
-  // ============================================================
+async function seedReferenceData() {
   const standardTier = await prisma.priceTier.upsert({
     where: { name: 'Standard' },
-    update: { isDefault: true, description: 'Default platform pricing' },
-    create: { name: 'Standard', description: 'Default platform pricing', isDefault: true },
+    update: { isDefault: true },
+    create: { name: 'Standard', isDefault: true },
   });
 
   const enterpriseTier = await prisma.priceTier.upsert({
     where: { name: 'Enterprise' },
-    update: { description: 'Discounted bulk pricing for large accounts' },
-    create: { name: 'Enterprise', description: 'Discounted bulk pricing for large accounts', isDefault: false },
+    update: { isDefault: false },
+    create: { name: 'Enterprise', isDefault: false },
   });
 
   const partnerTier = await prisma.priceTier.upsert({
     where: { name: 'Partner' },
-    update: { description: 'Premium white-glove partner pricing' },
-    create: { name: 'Partner', description: 'Premium white-glove partner pricing', isDefault: false },
+    update: { isDefault: false },
+    create: { name: 'Partner', isDefault: false },
   });
 
-  console.log('  ✅ Price tiers seeded');
-
-  // ============================================================
-  // 3. KITCHEN STATIONS
-  // ============================================================
   const hotStation = await prisma.kitchenStation.upsert({
     where: { name: 'Hot Kitchen' },
     update: {},
@@ -90,43 +120,37 @@ async function main() {
     create: { name: 'Grill Station', description: 'Grilled proteins and sandwiches' },
   });
 
-  console.log('  ✅ Kitchen stations seeded');
+  console.log('  ✅ Price tiers and kitchen stations seeded');
 
-  // ============================================================
-  // 4. ALLERGENS
-  // ============================================================
-  const allergenNames = [
-    'Gluten', 'Dairy', 'Nuts', 'Peanuts', 'Eggs',
-    'Soy', 'Sesame', 'Shellfish', 'Fish', 'Celery',
-  ];
+  return { standardTier, enterpriseTier, partnerTier, hotStation, coldStation, grillStation };
+}
+
+async function seedAllergensAndTags() {
+  const allergenNames = ['Gluten', 'Dairy', 'Nuts', 'Peanuts', 'Eggs', 'Soy', 'Sesame', 'Shellfish', 'Fish', 'Celery'];
+  const dietaryTagNames = ['Vegan', 'Vegetarian', 'Gluten-Free', 'Dairy-Free', 'Halal', 'Kosher', 'Low-Carb', 'High-Protein'];
 
   const allergenMap: Record<string, string> = {};
   for (const name of allergenNames) {
-    const a = await prisma.allergen.upsert({ where: { name }, update: {}, create: { name } });
-    allergenMap[name] = a.id;
+    const allergen = await prisma.allergen.upsert({ where: { name }, update: {}, create: { name } });
+    allergenMap[name] = allergen.id;
   }
-
-  console.log('  ✅ Allergens seeded');
-
-  // ============================================================
-  // 5. DIETARY TAGS
-  // ============================================================
-  const dietaryTagNames = [
-    'Vegan', 'Vegetarian', 'Gluten-Free', 'Dairy-Free',
-    'Halal', 'Kosher', 'Low-Carb', 'High-Protein',
-  ];
 
   const tagMap: Record<string, string> = {};
   for (const name of dietaryTagNames) {
-    const t = await prisma.dietaryTag.upsert({ where: { name }, update: {}, create: { name } });
-    tagMap[name] = t.id;
+    const tag = await prisma.dietaryTag.upsert({ where: { name }, update: {}, create: { name } });
+    tagMap[name] = tag.id;
   }
 
-  console.log('  ✅ Dietary tags seeded');
+  console.log('  ✅ Allergens and dietary tags seeded');
+  return { allergenMap, tagMap };
+}
 
-  // ============================================================
-  // 6. COMPANIES
-  // ============================================================
+async function seedCompanies({ driverId, enterpriseTier, partnerTier, standardTier }: {
+  driverId: string;
+  enterpriseTier: { id: string };
+  partnerTier: { id: string };
+  standardTier: { id: string };
+}) {
   const acme = await prisma.company.upsert({
     where: { id: 'company-acme-001' },
     update: {
@@ -213,11 +237,6 @@ async function main() {
     },
   });
 
-  console.log('  ✅ Companies seeded');
-
-  // ============================================================
-  // 7. COMPANY DOMAINS
-  // ============================================================
   const domainData = [
     { domain: 'acmecorp.com', companyId: acme.id },
     { domain: 'acme.co.uk', companyId: acme.id },
@@ -226,6 +245,11 @@ async function main() {
     { domain: 'novahealth.org', companyId: nova.id },
   ];
 
+  console.log('  ✅ Companies seeded');
+  return { acme, greenleaf, nova, domainData };
+}
+
+async function seedDomains(domainData: Array<{ domain: string; companyId: string }>) {
   await seqUpsert(domainData, (d) =>
     prisma.companyDomain.upsert({
       where: { domain: d.domain },
@@ -233,86 +257,56 @@ async function main() {
       create: d,
     }),
   );
-
   console.log('  ✅ Company domains seeded');
+}
 
-  // ============================================================
-  // 8. COMPANY ADDRESSES  (delete+recreate for idempotency)
-  // ============================================================
+async function seedAddresses({ acmeId, greenleafId, novaId }: { acmeId: string; greenleafId: string; novaId: string }) {
   await prisma.companyAddress.deleteMany({
-    where: { companyId: { in: [acme.id, greenleaf.id, nova.id] } },
+    where: { companyId: { in: [acmeId, greenleafId, novaId] } },
   });
 
   const addressData = [
-    {
-      companyId: acme.id,
-      addressLine1: '1 Acme Way',
-      city: 'London',
-      postalCode: 'EC1A 1BB',
-      instructions: 'Main entrance, buzz Acme Corp',
-      isDefault: true,
-    },
-    {
-      companyId: acme.id,
-      addressLine1: '17 Canary Wharf Tower',
-      addressLine2: 'Level 8',
-      city: 'London',
-      postalCode: 'E14 5AB',
-      instructions: 'Secondary office, security desk',
-      isDefault: false,
-    },
-    {
-      companyId: greenleaf.id,
-      addressLine1: '52 Shoreditch High Street',
-      addressLine2: 'Studio Floor 3',
-      city: 'London',
-      postalCode: 'E1 6JJ',
-      instructions: 'Ring studio bell',
-      isDefault: true,
-    },
-    {
-      companyId: nova.id,
-      addressLine1: "200 Gray's Inn Road",
-      city: 'London',
-      postalCode: 'WC1X 8XZ',
-      instructions: 'Health clinic reception — nut-free zone',
-      isDefault: true,
-    },
+    { companyId: acmeId, addressLine1: '1 Acme Way', city: 'London', postalCode: 'EC1A 1BB', instructions: 'Main entrance, buzz Acme Corp', isDefault: true },
+    { companyId: acmeId, addressLine1: '17 Canary Wharf Tower', addressLine2: 'Level 8', city: 'London', postalCode: 'E14 5AB', instructions: 'Secondary office, security desk', isDefault: false },
+    { companyId: greenleafId, addressLine1: '52 Shoreditch High Street', addressLine2: 'Studio Floor 3', city: 'London', postalCode: 'E1 6JJ', instructions: 'Ring studio bell', isDefault: true },
+    { companyId: novaId, addressLine1: "200 Gray's Inn Road", city: 'London', postalCode: 'WC1X 8XZ', instructions: 'Health clinic reception — nut-free zone', isDefault: true },
   ];
 
   for (const addr of addressData) {
     await prisma.companyAddress.create({ data: addr });
   }
-
   console.log('  ✅ Company addresses seeded');
+}
 
-  // ============================================================
-  // 9. EMPLOYEES
-  // ============================================================
-  const empPassword = await hash('Test@1234');
-
+async function seedEmployees({ acmeId, greenleafId, novaId, allergenMap, tagMap }: {
+  acmeId: string;
+  greenleafId: string;
+  novaId: string;
+  allergenMap: Record<string, string>;
+  tagMap: Record<string, string>;
+}) {
   const employeeData = [
-    { id: 'emp-acme-001', companyId: acme.id, email: 'p.sharma@acmecorp.com', name: 'Priya Sharma' },
-    { id: 'emp-acme-002', companyId: acme.id, email: 'j.whitfield@acmecorp.com', name: 'James Whitfield' },
-    { id: 'emp-acme-003', companyId: acme.id, email: 'a.chen@acmecorp.com', name: 'Amy Chen' },
-    { id: 'emp-acme-004', companyId: acme.id, email: 'd.osei@acmecorp.com', name: 'Kwame Osei' },
-    { id: 'emp-gl-001', companyId: greenleaf.id, email: 't.nguyen@greenleafstudios.co', name: 'Tom Nguyen' },
-    { id: 'emp-gl-002', companyId: greenleaf.id, email: 's.ali@greenleafstudios.co', name: 'Sara Ali' },
-    { id: 'emp-gl-003', companyId: greenleaf.id, email: 'r.mistry@greenleafstudios.co', name: 'Rohan Mistry' },
-    { id: 'emp-nova-001', companyId: nova.id, email: 'm.costa@novahealthpartners.com', name: 'Maria Costa' },
-    { id: 'emp-nova-002', companyId: nova.id, email: 'l.jones@novahealthpartners.com', name: 'Liam Jones' },
-    { id: 'emp-nova-003', companyId: nova.id, email: 'f.hassan@novahealthpartners.com', name: 'Fatima Hassan' },
+    { id: 'emp-acme-001', companyId: acmeId, email: 'p.sharma@acmecorp.com', name: 'Priya Sharma' },
+    { id: 'emp-acme-002', companyId: acmeId, email: 'j.whitfield@acmecorp.com', name: 'James Whitfield' },
+    { id: 'emp-acme-003', companyId: acmeId, email: 'a.chen@acmecorp.com', name: 'Amy Chen' },
+    { id: 'emp-acme-004', companyId: acmeId, email: 'd.osei@acmecorp.com', name: 'Kwame Osei' },
+    { id: 'emp-gl-001', companyId: greenleafId, email: 't.nguyen@greenleafstudios.co', name: 'Tom Nguyen' },
+    { id: 'emp-gl-002', companyId: greenleafId, email: 's.ali@greenleafstudios.co', name: 'Sara Ali' },
+    { id: 'emp-gl-003', companyId: greenleafId, email: 'r.mistry@greenleafstudios.co', name: 'Rohan Mistry' },
+    { id: 'emp-nova-001', companyId: novaId, email: 'm.costa@novahealthpartners.com', name: 'Maria Costa' },
+    { id: 'emp-nova-002', companyId: novaId, email: 'l.jones@novahealthpartners.com', name: 'Liam Jones' },
+    { id: 'emp-nova-003', companyId: novaId, email: 'f.hassan@novahealthpartners.com', name: 'Fatima Hassan' },
   ];
 
-  for (const e of employeeData) {
+  for (const employee of employeeData) {
     await prisma.employee.upsert({
-      where: { id: e.id },
-      update: { name: e.name, email: e.email },
+      where: { id: employee.id },
+      update: { name: employee.name, email: employee.email },
       create: {
-        id: e.id,
-        companyId: e.companyId,
-        email: e.email,
-        name: e.name,
+        id: employee.id,
+        companyId: employee.companyId,
+        email: employee.email,
+        name: employee.name,
         canChooseDeliveryAddress: true,
         canChangeDeliveryTime: false,
         canChangePackaging: false,
@@ -320,12 +314,10 @@ async function main() {
     });
   }
 
-  // Set owners
-  await prisma.company.update({ where: { id: acme.id }, data: { ownerId: 'emp-acme-001' } });
-  await prisma.company.update({ where: { id: greenleaf.id }, data: { ownerId: 'emp-gl-001' } });
-  await prisma.company.update({ where: { id: nova.id }, data: { ownerId: 'emp-nova-001' } });
+  await prisma.company.update({ where: { id: acmeId }, data: { ownerId: 'emp-acme-001' } });
+  await prisma.company.update({ where: { id: greenleafId }, data: { ownerId: 'emp-gl-001' } });
+  await prisma.company.update({ where: { id: novaId }, data: { ownerId: 'emp-nova-001' } });
 
-  // Employee dietary preferences
   await prisma.employeeDietaryTag.upsert({
     where: { employeeId_dietaryTagId: { employeeId: 'emp-nova-003', dietaryTagId: tagMap['Halal'] } },
     update: {},
@@ -336,8 +328,6 @@ async function main() {
     update: {},
     create: { employeeId: 'emp-gl-002', dietaryTagId: tagMap['Vegan'] },
   });
-
-  // Employee allergens
   await prisma.employeeAllergen.upsert({
     where: { employeeId_allergenId: { employeeId: 'emp-acme-003', allergenId: allergenMap['Nuts'] } },
     update: {},
@@ -348,12 +338,10 @@ async function main() {
     update: {},
     create: { employeeId: 'emp-nova-002', allergenId: allergenMap['Dairy'] },
   });
-
   console.log('  ✅ Employees seeded');
+}
 
-  // ============================================================
-  // 10. OPTIONS
-  // ============================================================
+async function seedOptions() {
   const optionData = [
     { id: 'opt-bread-white', name: 'White Bread', costPriceMinor: 20 },
     { id: 'opt-bread-whole', name: 'Wholemeal Bread', costPriceMinor: 25 },
@@ -369,19 +357,18 @@ async function main() {
     { id: 'opt-protein-falafel', name: 'Falafel', costPriceMinor: 100 },
   ];
 
-  for (const o of optionData) {
+  for (const option of optionData) {
     await prisma.option.upsert({
-      where: { id: o.id },
-      update: { name: o.name, costPriceMinor: o.costPriceMinor },
-      create: o,
+      where: { id: option.id },
+      update: { name: option.name, costPriceMinor: option.costPriceMinor },
+      create: option,
     });
   }
-
   console.log('  ✅ Options seeded');
+  return optionData;
+}
 
-  // ============================================================
-  // 11. OPTION GROUPS
-  // ============================================================
+async function seedOptionGroups() {
   const breadGroup = await prisma.optionGroup.upsert({
     where: { id: 'og-bread-choice' },
     update: { name: 'Bread Choice', isRequired: true },
@@ -406,8 +393,6 @@ async function main() {
     create: { id: 'og-protein-upgrade', name: 'Protein Upgrade', isRequired: false },
   });
 
-  console.log('  ✅ Option groups seeded');
-
   const ogOptionData = [
     { id: 'ogo-bread-white', optionGroupId: breadGroup.id, optionId: 'opt-bread-white', displayOrder: 1, extraChargeMinor: 0 },
     { id: 'ogo-bread-whole', optionGroupId: breadGroup.id, optionId: 'opt-bread-whole', displayOrder: 2, extraChargeMinor: 0 },
@@ -423,172 +408,30 @@ async function main() {
     { id: 'ogo-protein-falafel', optionGroupId: proteinGroup.id, optionId: 'opt-protein-falafel', displayOrder: 3, extraChargeMinor: 100 },
   ];
 
-  for (const o of ogOptionData) {
+  for (const item of ogOptionData) {
     await prisma.optionGroupOption.upsert({
-      where: { id: o.id },
-      update: { displayOrder: o.displayOrder, extraChargeMinor: o.extraChargeMinor },
-      create: o,
+      where: { id: item.id },
+      update: { displayOrder: item.displayOrder, extraChargeMinor: item.extraChargeMinor },
+      create: item,
     });
   }
+  console.log('  ✅ Option groups seeded');
+  return { breadGroup, sideGroup, sauceGroup, proteinGroup };
+}
 
-  // ============================================================
-  // 12. DISHES
-  // ============================================================
-  const dishData = [
-    {
-      id: 'dish-butter-chicken',
-      sku: 'HOT-001',
-      name: 'Butter Chicken',
-      description: 'Slow-cooked chicken in rich tomato and butter sauce, served with basmati rice',
-      temperature: 'HOT' as const,
-      costPriceMinor: 310,
-      stationId: hotStation.id,
-      allergens: ['Dairy', 'Gluten'],
-      tags: ['Halal'],
-    },
-    {
-      id: 'dish-dal-makhani',
-      sku: 'HOT-002',
-      name: 'Dal Makhani',
-      description: 'Creamy black lentils slow-cooked with butter and spices',
-      temperature: 'HOT' as const,
-      costPriceMinor: 230,
-      stationId: hotStation.id,
-      allergens: ['Dairy'],
-      tags: ['Vegetarian', 'Halal', 'Gluten-Free'],
-    },
-    {
-      id: 'dish-thai-green-curry',
-      sku: 'HOT-003',
-      name: 'Thai Green Curry',
-      description: 'Fragrant chicken in coconut green curry with jasmine rice',
-      temperature: 'HOT' as const,
-      costPriceMinor: 290,
-      stationId: hotStation.id,
-      allergens: ['Nuts', 'Shellfish'],
-      tags: ['Halal', 'Gluten-Free'],
-    },
-    {
-      id: 'dish-grilled-salmon',
-      sku: 'GRILL-001',
-      name: 'Grilled Salmon',
-      description: 'Atlantic salmon fillet with lemon herb butter and seasonal greens',
-      temperature: 'HOT' as const,
-      costPriceMinor: 420,
-      stationId: grillStation.id,
-      allergens: ['Fish', 'Dairy'],
-      tags: ['Gluten-Free', 'High-Protein', 'Low-Carb'],
-    },
-    {
-      id: 'dish-chicken-sandwich',
-      sku: 'GRILL-002',
-      name: 'Grilled Chicken Sandwich',
-      description: 'Marinated grilled chicken breast with lettuce, tomato and pickles',
-      temperature: 'HOT' as const,
-      costPriceMinor: 260,
-      stationId: grillStation.id,
-      allergens: ['Gluten', 'Eggs'],
-      tags: ['Halal', 'High-Protein'],
-    },
-    {
-      id: 'dish-caesar-salad',
-      sku: 'COLD-001',
-      name: 'Classic Caesar Salad',
-      description: 'Cos lettuce, parmesan, croutons and house Caesar dressing',
-      temperature: 'COLD' as const,
-      costPriceMinor: 200,
-      stationId: coldStation.id,
-      allergens: ['Gluten', 'Dairy', 'Eggs', 'Fish'],
-      tags: ['Vegetarian'],
-    },
-    {
-      id: 'dish-falafel-wrap',
-      sku: 'COLD-002',
-      name: 'Falafel & Hummus Wrap',
-      description: 'Crispy falafel with hummus, tabbouleh and pickled turnip in a flatbread',
-      temperature: 'COLD' as const,
-      costPriceMinor: 210,
-      stationId: coldStation.id,
-      allergens: ['Gluten', 'Sesame'],
-      tags: ['Vegan', 'Vegetarian'],
-    },
-    {
-      id: 'dish-quinoa-bowl',
-      sku: 'COLD-003',
-      name: 'Rainbow Quinoa Bowl',
-      description: 'Tri-colour quinoa with roasted vegetables, avocado and tahini dressing',
-      temperature: 'COLD' as const,
-      costPriceMinor: 240,
-      stationId: coldStation.id,
-      allergens: ['Sesame', 'Nuts'],
-      tags: ['Vegan', 'Gluten-Free', 'High-Protein'],
-    },
-    {
-      id: 'dish-beef-stir-fry',
-      sku: 'HOT-004',
-      name: 'Beef & Broccoli Stir-Fry',
-      description: 'Tender beef strips with broccoli in oyster sauce over egg fried rice',
-      temperature: 'HOT' as const,
-      costPriceMinor: 330,
-      stationId: hotStation.id,
-      allergens: ['Soy', 'Gluten', 'Eggs', 'Shellfish'],
-      tags: ['High-Protein'],
-    },
-  ];
-
-  for (const d of dishData) {
-    await prisma.dish.upsert({
-      where: { id: d.id },
-      update: {
-        name: d.name,
-        description: d.description,
-        temperature: d.temperature,
-        costPriceMinor: d.costPriceMinor,
-        stationId: d.stationId,
-      },
-      create: {
-        id: d.id,
-        sku: d.sku,
-        name: d.name,
-        description: d.description,
-        temperature: d.temperature,
-        costPriceMinor: d.costPriceMinor,
-        stationId: d.stationId,
-        isActive: true,
-      },
-    });
-
-    for (const aName of d.allergens) {
-      await prisma.dishAllergen.upsert({
-        where: { dishId_allergenId: { dishId: d.id, allergenId: allergenMap[aName] } },
-        update: {},
-        create: { dishId: d.id, allergenId: allergenMap[aName] },
-      });
-    }
-
-    for (const tName of d.tags) {
-      await prisma.dishDietaryTag.upsert({
-        where: { dishId_dietaryTagId: { dishId: d.id, dietaryTagId: tagMap[tName] } },
-        update: {},
-        create: { dishId: d.id, dietaryTagId: tagMap[tName] },
-      });
-    }
-  }
-
-  console.log('  ✅ Dishes seeded');
-
-  // ============================================================
-  // 13. DISH OPTION GROUPS
-  // ============================================================
+async function seedDishAssignments({ breadGroup, sideGroup, sauceGroup, proteinGroup }: {
+  breadGroup: { id: string };
+  sideGroup: { id: string };
+  sauceGroup: { id: string };
+  proteinGroup: { id: string };
+}) {
   const dishOgData = [
-    // Sandwiches & wraps: bread (required) + side + sauce
     { id: 'dog-dish-chicken-sandwich-bread', dishId: 'dish-chicken-sandwich', optionGroupId: breadGroup.id, displayOrder: 1 },
     { id: 'dog-dish-chicken-sandwich-side', dishId: 'dish-chicken-sandwich', optionGroupId: sideGroup.id, displayOrder: 2 },
     { id: 'dog-dish-chicken-sandwich-sauce', dishId: 'dish-chicken-sandwich', optionGroupId: sauceGroup.id, displayOrder: 3 },
     { id: 'dog-dish-falafel-wrap-bread', dishId: 'dish-falafel-wrap', optionGroupId: breadGroup.id, displayOrder: 1 },
     { id: 'dog-dish-falafel-wrap-side', dishId: 'dish-falafel-wrap', optionGroupId: sideGroup.id, displayOrder: 2 },
     { id: 'dog-dish-falafel-wrap-sauce', dishId: 'dish-falafel-wrap', optionGroupId: sauceGroup.id, displayOrder: 3 },
-    // Mains: side + sauce
     { id: 'dog-dish-butter-chicken-side', dishId: 'dish-butter-chicken', optionGroupId: sideGroup.id, displayOrder: 1 },
     { id: 'dog-dish-butter-chicken-sauce', dishId: 'dish-butter-chicken', optionGroupId: sauceGroup.id, displayOrder: 2 },
     { id: 'dog-dish-dal-makhani-side', dishId: 'dish-dal-makhani', optionGroupId: sideGroup.id, displayOrder: 1 },
@@ -597,26 +440,69 @@ async function main() {
     { id: 'dog-dish-thai-green-curry-sauce', dishId: 'dish-thai-green-curry', optionGroupId: sauceGroup.id, displayOrder: 2 },
     { id: 'dog-dish-beef-stir-fry-side', dishId: 'dish-beef-stir-fry', optionGroupId: sideGroup.id, displayOrder: 1 },
     { id: 'dog-dish-beef-stir-fry-sauce', dishId: 'dish-beef-stir-fry', optionGroupId: sauceGroup.id, displayOrder: 2 },
-    // Salads/bowls: protein upgrade
     { id: 'dog-dish-caesar-salad-protein', dishId: 'dish-caesar-salad', optionGroupId: proteinGroup.id, displayOrder: 1 },
     { id: 'dog-dish-quinoa-bowl-protein', dishId: 'dish-quinoa-bowl', optionGroupId: proteinGroup.id, displayOrder: 1 },
-    // Salmon: side
     { id: 'dog-dish-grilled-salmon-side', dishId: 'dish-grilled-salmon', optionGroupId: sideGroup.id, displayOrder: 1 },
   ];
 
-  for (const d of dishOgData) {
+  for (const dishOption of dishOgData) {
     await prisma.dishOptionGroup.upsert({
-      where: { id: d.id },
-      update: { displayOrder: d.displayOrder },
-      create: d,
+      where: { id: dishOption.id },
+      update: { displayOrder: dishOption.displayOrder },
+      create: dishOption,
     });
   }
-
   console.log('  ✅ Dish option groups attached');
+}
 
-  // ============================================================
-  // 14. CATEGORIES
-  // ============================================================
+async function seedDishes({ hotStation, coldStation, grillStation, allergenMap, tagMap }: {
+  hotStation: { id: string };
+  coldStation: { id: string };
+  grillStation: { id: string };
+  allergenMap: Record<string, string>;
+  tagMap: Record<string, string>;
+}) {
+  const dishData = [
+    { id: 'dish-butter-chicken', sku: 'HOT-001', name: 'Butter Chicken', description: 'Slow-cooked chicken in rich tomato and butter sauce, served with basmati rice', temperature: 'HOT' as const, costPriceMinor: 310, stationId: hotStation.id, allergens: ['Dairy', 'Gluten'], tags: ['Halal'] },
+    { id: 'dish-dal-makhani', sku: 'HOT-002', name: 'Dal Makhani', description: 'Creamy black lentils slow-cooked with butter and spices', temperature: 'HOT' as const, costPriceMinor: 230, stationId: hotStation.id, allergens: ['Dairy'], tags: ['Vegetarian', 'Halal', 'Gluten-Free'] },
+    { id: 'dish-thai-green-curry', sku: 'HOT-003', name: 'Thai Green Curry', description: 'Fragrant chicken in coconut green curry with jasmine rice', temperature: 'HOT' as const, costPriceMinor: 290, stationId: hotStation.id, allergens: ['Nuts', 'Shellfish'], tags: ['Halal', 'Gluten-Free'] },
+    { id: 'dish-grilled-salmon', sku: 'GRILL-001', name: 'Grilled Salmon', description: 'Atlantic salmon fillet with lemon herb butter and seasonal greens', temperature: 'HOT' as const, costPriceMinor: 420, stationId: grillStation.id, allergens: ['Fish', 'Dairy'], tags: ['Gluten-Free', 'High-Protein', 'Low-Carb'] },
+    { id: 'dish-chicken-sandwich', sku: 'GRILL-002', name: 'Grilled Chicken Sandwich', description: 'Marinated grilled chicken breast with lettuce, tomato and pickles', temperature: 'HOT' as const, costPriceMinor: 260, stationId: grillStation.id, allergens: ['Gluten', 'Eggs'], tags: ['Halal', 'High-Protein'] },
+    { id: 'dish-caesar-salad', sku: 'COLD-001', name: 'Classic Caesar Salad', description: 'Cos lettuce, parmesan, croutons and house Caesar dressing', temperature: 'COLD' as const, costPriceMinor: 200, stationId: coldStation.id, allergens: ['Gluten', 'Dairy', 'Eggs', 'Fish'], tags: ['Vegetarian'] },
+    { id: 'dish-falafel-wrap', sku: 'COLD-002', name: 'Falafel & Hummus Wrap', description: 'Crispy falafel with hummus, tabbouleh and pickled turnip in a flatbread', temperature: 'COLD' as const, costPriceMinor: 210, stationId: coldStation.id, allergens: ['Gluten', 'Sesame'], tags: ['Vegan', 'Vegetarian'] },
+    { id: 'dish-quinoa-bowl', sku: 'COLD-003', name: 'Rainbow Quinoa Bowl', description: 'Tri-colour quinoa with roasted vegetables, avocado and tahini dressing', temperature: 'COLD' as const, costPriceMinor: 240, stationId: coldStation.id, allergens: ['Sesame', 'Nuts'], tags: ['Vegan', 'Gluten-Free', 'High-Protein'] },
+    { id: 'dish-beef-stir-fry', sku: 'HOT-004', name: 'Beef & Broccoli Stir-Fry', description: 'Tender beef strips with broccoli in oyster sauce over egg fried rice', temperature: 'HOT' as const, costPriceMinor: 330, stationId: hotStation.id, allergens: ['Soy', 'Gluten', 'Eggs', 'Shellfish'], tags: ['High-Protein'] },
+  ];
+
+  for (const dish of dishData) {
+    await prisma.dish.upsert({
+      where: { id: dish.id },
+      update: { name: dish.name, description: dish.description, temperature: dish.temperature, stationId: dish.stationId },
+      create: { id: dish.id, sku: dish.sku, name: dish.name, description: dish.description, temperature: dish.temperature, costPriceMinor: dish.costPriceMinor, stationId: dish.stationId, isActive: true },
+    });
+
+    for (const allergenName of dish.allergens) {
+      await prisma.dishAllergen.upsert({
+        where: { dishId_allergenId: { dishId: dish.id, allergenId: allergenMap[allergenName] } },
+        update: {},
+        create: { dishId: dish.id, allergenId: allergenMap[allergenName] },
+      });
+    }
+
+    for (const tagName of dish.tags) {
+      await prisma.dishDietaryTag.upsert({
+        where: { dishId_dietaryTagId: { dishId: dish.id, dietaryTagId: tagMap[tagName] } },
+        update: {},
+        create: { dishId: dish.id, dietaryTagId: tagMap[tagName] },
+      });
+    }
+  }
+
+  console.log('  ✅ Dishes seeded');
+  return { dishData };
+}
+
+async function seedCategories() {
   const catData = [
     { id: 'cat-hot-mains', name: 'Hot Mains', displayOrder: 1 },
     { id: 'cat-grill', name: 'From the Grill', displayOrder: 2 },
@@ -625,11 +511,11 @@ async function main() {
     { id: 'cat-high-protein', name: 'High Protein', displayOrder: 5 },
   ];
 
-  for (const c of catData) {
+  for (const category of catData) {
     await prisma.category.upsert({
-      where: { id: c.id },
-      update: { name: c.name, displayOrder: c.displayOrder },
-      create: { id: c.id, name: c.name, displayOrder: c.displayOrder, isActive: true },
+      where: { id: category.id },
+      update: { name: category.name, displayOrder: category.displayOrder },
+      create: { id: category.id, name: category.name, displayOrder: category.displayOrder, isActive: true },
     });
   }
 
@@ -651,125 +537,85 @@ async function main() {
     { id: 'cd-hp-qb', categoryId: 'cat-high-protein', dishId: 'dish-quinoa-bowl', displayOrder: 4 },
   ];
 
-  for (const cd of catDishData) {
+  for (const item of catDishData) {
     await prisma.categoryDish.upsert({
-      where: { id: cd.id },
-      update: { displayOrder: cd.displayOrder },
-      create: { id: cd.id, categoryId: cd.categoryId, dishId: cd.dishId, displayOrder: cd.displayOrder, isActive: true },
+      where: { id: item.id },
+      update: { displayOrder: item.displayOrder },
+      create: { id: item.id, categoryId: item.categoryId, dishId: item.dishId, displayOrder: item.displayOrder, isActive: true },
     });
   }
-
   console.log('  ✅ Categories seeded');
+}
 
-  // ============================================================
-  // 15. DISH PRICES  (Standard × 2.8 | Enterprise × 2.4 | Partner × 3.2)
-  // ============================================================
+async function seedPrices({ dishData, optionData, standardTier, enterpriseTier, partnerTier }: {
+  dishData: Array<{ id: string; costPriceMinor: number }>;
+  optionData: Array<{ id: string; costPriceMinor: number }>;
+  standardTier: { id: string };
+  enterpriseTier: { id: string };
+  partnerTier: { id: string };
+}) {
   const tiers = [
     { tier: standardTier, multiplier: 2.8 },
     { tier: enterpriseTier, multiplier: 2.4 },
     { tier: partnerTier, multiplier: 3.2 },
   ];
 
-  for (const d of dishData) {
+  for (const dish of dishData) {
     for (const { tier, multiplier } of tiers) {
       await prisma.dishPrice.upsert({
-        where: { id: `dp-${d.id}-${tier.id}` },
-        update: { priceMinor: Math.round(d.costPriceMinor * multiplier) },
-        create: {
-          id: `dp-${d.id}-${tier.id}`,
-          dishId: d.id,
-          priceTierId: tier.id,
-          priceMinor: Math.round(d.costPriceMinor * multiplier),
-        },
+        where: { id: `dp-${dish.id}-${tier.id}` },
+        update: { priceMinor: Math.round(dish.costPriceMinor * multiplier) },
+        create: { id: `dp-${dish.id}-${tier.id}`, dishId: dish.id, priceTierId: tier.id, priceMinor: Math.round(dish.costPriceMinor * multiplier) },
       });
     }
   }
 
-  // ============================================================
-  // 16. OPTION PRICES
-  // ============================================================
-  for (const o of optionData) {
+  for (const option of optionData) {
     for (const { tier, multiplier } of tiers) {
       await prisma.optionPrice.upsert({
-        where: { id: `op-${o.id}-${tier.id}` },
-        update: { priceMinor: Math.round(o.costPriceMinor * multiplier) },
-        create: {
-          id: `op-${o.id}-${tier.id}`,
-          optionId: o.id,
-          priceTierId: tier.id,
-          priceMinor: Math.round(o.costPriceMinor * multiplier),
-        },
+        where: { id: `op-${option.id}-${tier.id}` },
+        update: { priceMinor: Math.round(option.costPriceMinor * multiplier) },
+        create: { id: `op-${option.id}-${tier.id}`, optionId: option.id, priceTierId: tier.id, priceMinor: Math.round(option.costPriceMinor * multiplier) },
       });
     }
   }
-
   console.log('  ✅ Dish & option prices seeded');
+}
 
-  // ============================================================
-  // 17. PLATFORM SETTINGS
-  // ============================================================
+async function seedPlatformSettings() {
   await prisma.platformSettings.upsert({
     where: { id: 'default' },
     update: {},
-    create: {
-      id: 'default',
-      kitchenTimeZone: 'Europe/London',
-      cutOffTime: '16:00',
-      cutOffWorkingDays: 2,
-      dispatchLeadMinutes: 60,
-      kitchenReadyBufferMinutes: 30,
-    },
+    create: { id: 'default', kitchenTimeZone: 'Europe/London', cutOffTime: '16:00', cutOffWorkingDays: 2, dispatchLeadMinutes: 60, kitchenReadyBufferMinutes: 30 },
   });
+}
 
-  // ============================================================
-  // 18. KITCHEN & COMPANY HOLIDAYS
-  // ============================================================
+async function seedHolidays({ greenleafId, novaId }: { greenleafId: string; novaId: string }) {
   const kitchenHolidays = [
     { id: 'kh-xmas-2026', date: new Date('2026-12-25'), name: 'Christmas Day' },
     { id: 'kh-boxing-2026', date: new Date('2026-12-26'), name: 'Boxing Day' },
     { id: 'kh-ny-2027', date: new Date('2027-01-01'), name: "New Year's Day" },
   ];
 
-  for (const h of kitchenHolidays) {
+  for (const holiday of kitchenHolidays) {
     await prisma.kitchenHoliday.upsert({
-      where: { id: h.id },
-      update: { name: h.name },
-      create: h,
+      where: { id: holiday.id },
+      update: { name: holiday.name },
+      create: holiday,
     });
   }
 
   await prisma.companyHoliday.upsert({
-    where: { companyId_date: { companyId: nova.id, date: new Date('2027-04-02') } },
+    where: { companyId_date: { companyId: novaId, date: new Date('2027-04-02') } },
     update: {},
-    create: { companyId: nova.id, date: new Date('2027-04-02'), name: 'Good Friday' },
+    create: { companyId: novaId, date: new Date('2027-04-02'), name: 'Good Friday' },
   });
   await prisma.companyHoliday.upsert({
-    where: { companyId_date: { companyId: greenleaf.id, date: new Date('2026-10-20') } },
+    where: { companyId_date: { companyId: greenleafId, date: new Date('2026-10-20') } },
     update: {},
-    create: { companyId: greenleaf.id, date: new Date('2026-10-20'), name: 'Diwali' },
+    create: { companyId: greenleafId, date: new Date('2026-10-20'), name: 'Diwali' },
   });
-
   console.log('  ✅ Platform settings & holidays seeded');
-
-  // ============================================================
-  // Summary
-  // ============================================================
-  console.log('\n🎉 Seed complete!');
-  console.log('');
-  console.log('  Staff logins:');
-  console.log('  ┌─────────────────────────┬───────────┬──────────┐');
-  console.log('  │ Email                   │ Password  │ Role     │');
-  console.log('  ├─────────────────────────┼───────────┼──────────┤');
-  for (const s of staffUsers) {
-    const pad = (str: string, len: number) => str.padEnd(len);
-    console.log(`  │ ${pad(s.email, 23)} │ Test@1234 │ ${pad(s.role, 8)} │`);
-  }
-  console.log('  └─────────────────────────┴───────────┴──────────┘');
-  console.log(`\n  Companies : Acme Corp · Greenleaf Studios · Nova Health Partners`);
-  console.log(`  Dishes    : ${dishData.length}`);
-  console.log(`  Options   : ${optionData.length}`);
-  console.log(`  Tiers     : Standard · Enterprise · Partner`);
-  console.log('');
 }
 
 main()
