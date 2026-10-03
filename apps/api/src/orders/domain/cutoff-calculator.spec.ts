@@ -45,6 +45,26 @@ test('skips kitchen holidays', () => {
   );
 });
 
+test('uses configured kitchen working days', () => {
+  const service = new CutoffCalculator({
+    kitchenTimeZone: 'Asia/Kolkata',
+    cutOffTime: '16:00',
+    cutOffWorkingDays: 1,
+    kitchenCalendar: new KitchenCalendarService([], {
+      mon: true,
+      tue: true,
+      wed: true,
+      thu: true,
+      fri: true,
+      sat: true,
+      sun: false,
+    }),
+    clock: new FixedClock(new Date('2024-01-04T00:00:00.000Z')),
+  });
+
+  assert.equal(service.calculate(new Date('2024-01-08T00:00:00.000Z')).toISOString(), '2024-01-06T10:30:00.000Z');
+});
+
 test('handles month boundaries', () => {
   assert.equal(
     calculator('2024-02-01T00:00:00.000Z', 2).toISOString(),

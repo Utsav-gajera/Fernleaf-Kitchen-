@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
 import { Permission } from '@project/shared';
+import { UpdateSettingsDto } from './dto/settings.dto';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -18,7 +19,7 @@ export class SettingsController {
 
   @Patch()
   @RequirePermissions(Permission.SETTINGS_MANAGE)
-  async updateSettings(@Body() data: Record<string, unknown>) {
+  async updateSettings(@Body() data: UpdateSettingsDto) {
     return this.settingsService.updateSettings(data);
   }
 }

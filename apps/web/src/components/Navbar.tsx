@@ -60,6 +60,11 @@ export default function Navbar() {
                 Billing
               </Link>
             )}
+            {user.role === 'ADMIN' && (
+              <Link href="/dashboard/settings" className="btn-secondary btn-sm" id="nav-settings-btn">
+                Settings
+              </Link>
+            )}
             {user.role === 'DRIVER' && (
               <Link href="/dashboard/driver" className="btn-secondary btn-sm" id="nav-driver-btn">
                 My drops

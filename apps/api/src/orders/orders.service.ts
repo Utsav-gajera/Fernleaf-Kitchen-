@@ -97,6 +97,7 @@ export class OrdersService {
     const kitchenHolidays = await this.prisma.kitchenHoliday.findMany();
     const kitchenCalendar = new KitchenCalendarService(
       kitchenHolidays.map((holiday) => holiday.date.toISOString().slice(0, 10)),
+      settings,
     );
     const cutoff = new CutoffCalculator({
       kitchenTimeZone: settings.kitchenTimeZone,
@@ -402,7 +403,7 @@ export class OrdersService {
         kitchenTimeZone: settings.kitchenTimeZone,
         cutOffTime: settings.cutOffTime,
         cutOffWorkingDays: settings.cutOffWorkingDays,
-        kitchenCalendar: new KitchenCalendarService(kitchenHolidays.map((holiday) => holiday.date.toISOString().slice(0, 10))),
+        kitchenCalendar: new KitchenCalendarService(kitchenHolidays.map((holiday) => holiday.date.toISOString().slice(0, 10)), settings),
         clock: { now: () => new Date() },
       });
       if (cutoff.isPastCutoff(deliveryDate) && !isAdmin) {
@@ -431,7 +432,7 @@ export class OrdersService {
       kitchenTimeZone: settings.kitchenTimeZone,
       cutOffTime: settings.cutOffTime,
       cutOffWorkingDays: settings.cutOffWorkingDays,
-      kitchenCalendar: new KitchenCalendarService(holidays.map((holiday) => holiday.date.toISOString().slice(0, 10))),
+      kitchenCalendar: new KitchenCalendarService(holidays.map((holiday) => holiday.date.toISOString().slice(0, 10)), settings),
       clock: { now: () => new Date() },
     }).isPastCutoff(deliveryDate);
   }

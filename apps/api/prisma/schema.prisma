@@ -634,6 +634,13 @@ model PlatformSettings {
   kitchenTimeZone           String   @default("Asia/Kolkata")
   cutOffTime                String   @default("16:00")
   cutOffWorkingDays         Int      @default(2)
+  mon                       Boolean  @default(true)
+  tue                       Boolean  @default(true)
+  wed                       Boolean  @default(true)
+  thu                       Boolean  @default(true)
+  fri                       Boolean  @default(true)
+  sat                       Boolean  @default(false)
+  sun                       Boolean  @default(false)
   dispatchLeadMinutes       Int      @default(60)
   kitchenReadyBufferMinutes Int      @default(30)
   updatedAt                 DateTime @updatedAt

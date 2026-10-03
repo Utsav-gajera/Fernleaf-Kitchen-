@@ -33,6 +33,9 @@ A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Rou
   - Confirmed billable orders can be included in one company invoice only.
   - Invoice totals use integer minor units and invoices can be marked paid.
   - An order on an unpaid invoice must be removed before financial changes; paid invoices are financially immutable.
+- **Kitchen Settings**:
+  - Admins can edit the kitchen timezone, cutoff time, cutoff working-day count, working weekdays, and holidays from `/dashboard/settings`.
+  - Cutoff calculations read these persisted settings as their single source of truth.
 
 ---
 

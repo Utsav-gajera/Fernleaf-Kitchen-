@@ -30,13 +30,22 @@ export interface CalendarDate {
 export class KitchenCalendarService implements CalendarDate {
   private readonly holidays: ReadonlySet<string>;
 
-  constructor(holidays: readonly string[] = []) {
+  constructor(
+    holidays: readonly string[] = [],
+    private readonly workingDays: CompanyWorkingDays = {
+      mon: true, tue: true, wed: true, thu: true, fri: true, sat: false, sun: false,
+    },
+  ) {
     this.holidays = new Set(holidays);
   }
 
   isWorkingDay(date: string): boolean {
     const weekday = parseCalendarDate(date).getUTCDay();
-    return weekday !== 0 && weekday !== 6 && !this.holidays.has(date);
+    const enabled = [
+      this.workingDays.sun, this.workingDays.mon, this.workingDays.tue,
+      this.workingDays.wed, this.workingDays.thu, this.workingDays.fri, this.workingDays.sat,
+    ];
+    return enabled[weekday] === true && !this.holidays.has(date);
   }
 
   subtractWorkingDays(date: string, days: number): string {

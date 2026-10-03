@@ -6,7 +6,7 @@ import { Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { Role } from '../../types';
 
-const adminOnly = ['/dashboard/companies', '/dashboard/employees', '/dashboard/catalogue', '/dashboard/pricing', '/dashboard/menu', '/dashboard/billing'];
+const adminOnly = ['/dashboard/companies', '/dashboard/employees', '/dashboard/catalogue', '/dashboard/pricing', '/dashboard/menu', '/dashboard/billing', '/dashboard/settings'];
 
 function requiredRoles(pathname: string): Role[] | null {
   if (adminOnly.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return ['ADMIN'];
