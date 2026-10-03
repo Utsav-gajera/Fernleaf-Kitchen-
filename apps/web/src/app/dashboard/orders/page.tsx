@@ -230,13 +230,12 @@ export default function OrdersPage() {
     setStatus('');
     try {
       const payload = {
-        employeeId,
         deliveryDate: `${deliveryDate}T00:00:00.000Z`,
         deliveryTime: canChangeTime && deliveryTime ? deliveryTime : undefined,
         packaging: canChangePackaging && packaging ? packaging : undefined,
         address: canUseAddress && address.addressLine1 ? address : undefined,
         lines: lines.map((line) => ({ dishId: line.dish.id, quantity: line.quantity, combinations: line.combinations })),
-        ...(selected ? {} : { place: placeOnSave }),
+        ...(!selected ? { employeeId, place: placeOnSave } : {}),
       };
       const editing = Boolean(selected);
       const saved = selected

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { Role } from '@project/shared';
@@ -27,6 +28,7 @@ import {
   OrderListQueryDto,
   UpdateOrderDto,
 } from './dto/order.dto';
+import { KitchenService } from '../kitchen/kitchen.service';
 
 @Injectable()
 export class OrdersService {
@@ -38,6 +40,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly menuService: MenuService,
     private readonly pricingService: PricingService,
+    @Optional() private readonly kitchenService?: KitchenService,
   ) {}
 
   async findAll(query: OrderListQueryDto) {
@@ -265,6 +268,11 @@ export class OrdersService {
       await tx.orderTimelineEvent.create({ data: { orderId: id, status: OrderStatus.CANCELLED } });
     });
     return this.findOne(id);
+  }
+
+  async forceComplete(id: string, user: { role: Role }) {
+    if (!this.kitchenService) throw new BadRequestException('Kitchen service is not configured.');
+    return this.kitchenService.forceCompleteOrder(id, user.role);
   }
 
   private async prepareOrder(

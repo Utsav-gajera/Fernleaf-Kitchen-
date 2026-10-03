@@ -56,4 +56,10 @@ export class OrdersController {
   cancel(@Param('id') id: string, @Req() request: { user: { role: Role } }) {
     return this.ordersService.cancel(id, request.user);
   }
+
+  @Post(':id/force-complete')
+  @RequirePermissions(Permission.ORDER_OVERRIDE)
+  forceComplete(@Param('id') id: string, @Req() request: { user: { role: Role } }) {
+    return this.ordersService.forceComplete(id, request.user);
+  }
 }

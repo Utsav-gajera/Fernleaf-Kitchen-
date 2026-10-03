@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { KitchenService } from '../kitchen/kitchen.service';
 
 export interface CutoffProcessingResult {
   deliveryDate: string;
@@ -12,7 +13,7 @@ export interface CutoffProcessingResult {
 
 @Injectable()
 export class CutoffProcessor {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly kitchenService?: KitchenService) {}
 
   async process(deliveryDate: Date): Promise<CutoffProcessingResult> {
     const normalizedDate = this.normalizeDate(deliveryDate);
@@ -74,6 +75,11 @@ export class CutoffProcessor {
           note: 'Automatically confirmed at cutoff and marked billable',
         })),
       });
+      for (const order of placed) {
+        if (this.kitchenService) {
+          await this.kitchenService.generateUnitsForConfirmedOrder(tx, order.id);
+        }
+      }
     }
 
     return {

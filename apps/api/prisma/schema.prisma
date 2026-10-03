@@ -32,6 +32,20 @@ enum OrderStatus {
   REJECTED
 }
 
+enum KitchenUnitStatus {
+  PENDING
+  STARTED
+  DONE
+}
+
+enum KitchenOrderStatus {
+  PENDING
+  STARTED
+  DONE
+
+  @@map("KitchenProgressStatus")
+}
+
 // ============================================================================
 // STAFF & USER MANAGEMENT
 // ============================================================================
@@ -195,6 +209,7 @@ model KitchenStation {
   description String?
 
   dishes Dish[]
+  units  KitchenUnit[]
 
   createdAt DateTime @default(now())
 
@@ -421,9 +436,13 @@ model Order {
   deliveryFeeMinor    Int         @default(0)
   taxMinor            Int         @default(0)
   totalMinor          Int         @default(0)
+  kitchenStatus      KitchenOrderStatus @default(PENDING)
+  kitchenStartedAt    DateTime?
+  kitchenReadyAt     DateTime?
 
   lines          OrderLine[]
   timelineEvents OrderTimelineEvent[]
+  kitchenUnits   KitchenUnit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -472,9 +491,37 @@ model OrderCombination {
   totalMinor              Int
 
   options OrderCombinationOption[]
+  kitchenUnit KitchenUnit?
 
   @@index([orderLineId])
   @@map("order_combinations")
+}
+
+model KitchenUnit {
+  id                    String            @id @default(uuid())
+  orderId               String
+  order                 Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  combinationId         String            @unique
+  combination            OrderCombination @relation(fields: [combinationId], references: [id], onDelete: Cascade)
+  stationId             String?
+  station               KitchenStation?   @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  stationNameSnapshot   String?
+  dishNameSnapshot      String
+  skuSnapshot           String
+  optionsSnapshot       String
+  quantity              Int
+  status                KitchenUnitStatus @default(PENDING)
+  plannedDispatchAt     DateTime
+  plannedKitchenReadyAt DateTime
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([orderId, status])
+  @@index([plannedKitchenReadyAt])
+  @@index([stationId])
+  @@map("kitchen_units")
 }
 
 model OrderCombinationOption {

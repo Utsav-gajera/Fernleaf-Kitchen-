@@ -40,9 +40,16 @@ export default function Navbar() {
             <Link href="/dashboard" className="btn-secondary btn-sm" id="nav-dashboard-btn">
               Dashboard
             </Link>
-            <Link href="/dashboard/orders" className="btn-secondary btn-sm" id="nav-orders-btn">
-              Orders
-            </Link>
+            {(user.role === 'ADMIN' || user.role === 'DISPATCH') && (
+              <Link href="/dashboard/orders" className="btn-secondary btn-sm" id="nav-orders-btn">
+                Orders
+              </Link>
+            )}
+            {user.role === 'KITCHEN' && (
+              <Link href="/dashboard/kitchen" className="btn-secondary btn-sm" id="nav-kitchen-btn">
+                Kitchen
+              </Link>
+            )}
 
             <div
               className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}
