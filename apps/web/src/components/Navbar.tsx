@@ -40,6 +40,9 @@ export default function Navbar() {
             <Link href="/dashboard" className="btn-secondary btn-sm" id="nav-dashboard-btn">
               Dashboard
             </Link>
+            <Link href="/dashboard/orders" className="btn-secondary btn-sm" id="nav-orders-btn">
+              Orders
+            </Link>
 
             <div
               className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}

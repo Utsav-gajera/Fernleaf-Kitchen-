@@ -115,11 +115,20 @@ export class MenuService {
       }),
     );
 
-    return groups
+    const resolvedGroups = groups
       .filter(
         (group): group is NonNullable<typeof group> => group !== null,
       )
       .sort((left, right) => left.displayOrder - right.displayOrder);
+    const requiredGroups = dish.optionGroups.filter(
+      (dishOptionGroup) =>
+        dishOptionGroup.isRequiredOverride ??
+        dishOptionGroup.optionGroup.isRequired,
+    );
+    if (requiredGroups.some((group) => !resolvedGroups.some((resolved) => resolved.id === group.optionGroup.id))) {
+      return null;
+    }
+    return resolvedGroups;
   }
 
   private async resolveDish(
@@ -135,6 +144,11 @@ export class MenuService {
       companyTierId,
     );
     if (!pricing.available || !this.resolvedPricePolicy.hasPrice(pricing.priceMinor)) {
+      return null;
+    }
+
+    const optionGroups = await this.resolveOptionGroups(dish, companyTierId);
+    if (optionGroups === null) {
       return null;
     }
 
@@ -156,7 +170,7 @@ export class MenuService {
         id: dietaryTag.id,
         name: dietaryTag.name,
       })),
-      optionGroups: await this.resolveOptionGroups(dish, companyTierId),
+      optionGroups,
     };
   }
 

@@ -407,6 +407,8 @@ model Order {
   createdByStaffId    String?
   createdByStaff      StaffUser?  @relation("OrderCreatedByStaff", fields: [createdByStaffId], references: [id], onDelete: SetNull)
   status              OrderStatus @default(DRAFT)
+  invoiced            Boolean     @default(false)
+  billable            Boolean     @default(false)
   deliveryDate        DateTime
   deliveryTime        String
   addressLine1        String
@@ -431,6 +433,14 @@ model Order {
   @@index([status])
   @@index([deliveryDate])
   @@map("orders")
+}
+
+model CutoffProcessing {
+  id           String   @id @default(uuid())
+  deliveryDate DateTime @unique
+  processedAt  DateTime @default(now())
+
+  @@map("cutoff_processing")
 }
 
 model OrderLine {
@@ -458,6 +468,8 @@ model OrderCombination {
   orderLine               OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
   optionGroupId           String?
   optionGroupNameSnapshot String
+  quantity                Int
+  totalMinor              Int
 
   options OrderCombinationOption[]
 

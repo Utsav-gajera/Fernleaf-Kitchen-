@@ -5,8 +5,8 @@
   "scripts": {
     "build": "nest build",
     "start": "npm run build && node dist/apps/api/src/main.js",
-    "dev": "nest start --watch",
-    "start:dev": "nest start --watch",
+    "dev": "nest start --watch --exec \"node dist/apps/api/src/main.js\"",
+    "start:dev": "nest start --watch --exec \"node dist/apps/api/src/main.js\"",
     "start:prod": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "npm --prefix ../../packages/shared run build && node --test --require ts-node/register \"src/**/*.spec.ts\"",

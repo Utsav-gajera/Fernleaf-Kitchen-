@@ -15,6 +15,7 @@ import { DispatchModule } from './dispatch/dispatch.module';
 import { BillingModule } from './billing/billing.module';
 import { SettingsModule } from './settings/settings.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CutoffsModule } from './cutoffs/cutoffs.module';
 
 @Controller()
 class AppController {
@@ -68,6 +69,7 @@ class AppController {
     BillingModule,
     SettingsModule,
     DashboardModule,
+    CutoffsModule,
   ],
   controllers: [AppController],
 })

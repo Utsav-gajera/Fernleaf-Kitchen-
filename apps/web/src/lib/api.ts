@@ -25,6 +25,8 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
     if (data?.message) {
       if (Array.isArray(data.message)) {
         errorMsg = data.message.join(', ');
+      } else if (typeof data.message === 'object' && data.message.message) {
+        errorMsg = data.message.message;
       } else {
         errorMsg = data.message;
       }

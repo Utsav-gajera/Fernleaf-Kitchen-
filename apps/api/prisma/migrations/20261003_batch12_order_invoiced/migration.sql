@@ -1,0 +1,3 @@
+ALTER TABLE "orders" ADD COLUMN "invoiced" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "order_combinations" ADD COLUMN "quantity" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "order_combinations" ADD COLUMN "totalMinor" INTEGER NOT NULL DEFAULT 0;
