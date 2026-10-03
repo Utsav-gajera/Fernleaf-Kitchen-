@@ -152,12 +152,25 @@ export class OrdersService {
   async update(id: string, data: UpdateOrderDto, user: { role: Role }) {
     const existing = await this.prisma.order.findUnique({
       where: { id },
-      include: { employee: true, lines: { include: { combinations: { include: { options: true } } } } },
+      include: {
+        employee: true,
+        lines: { include: { combinations: { include: { options: true } } } },
+        invoiceOrders: { include: { invoice: { select: { status: true } } } },
+      },
     });
     if (!existing) throw new NotFoundException(`Order ${id} was not found.`);
     const afterCutoff = await this.isAfterCutoff(existing.deliveryDate, existing.employee.companyId);
     if (!this.orderPolicy.canEdit(existing.status, afterCutoff, user.role === Role.ADMIN)) {
       throw new ForbiddenException('Order cannot be edited after cutoff.');
+    }
+    if (data.lines || data.packaging) {
+      const invoice = existing.invoiceOrders[0]?.invoice;
+      if (invoice?.status === 'PAID') {
+        throw new ForbiddenException('Orders on paid invoices are financially immutable.');
+      }
+      if (invoice?.status === 'UNPAID') {
+        throw new BadRequestException('Remove the order from its unpaid invoice before changing financial values.');
+      }
     }
     if (!data.lines) {
       const employee = await this.loadEmployee(existing.employeeId);

@@ -1,30 +1,39 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { BillingService } from './billing.service';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Permission } from '@project/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
-import { Permission } from '@project/shared';
+import { BillingService } from './billing.service';
+import { CreateInvoiceDto } from './dto/billing.dto';
 
-@Controller('billing')
+@Controller()
 @UseGuards(JwtAuthGuard, PermissionGuard)
+@RequirePermissions(Permission.BILLING_MANAGE)
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 
-  @Get('invoices')
-  @RequirePermissions(Permission.BILLING_MANAGE)
-  async getInvoices() {
-    return this.billingService.getInvoices();
+  @Get('billing/companies/:companyId/uninvoiced')
+  getUninvoiced(@Param('companyId') companyId: string) {
+    return this.billingService.getUninvoicedOrders(companyId);
   }
 
   @Post('invoices')
-  @RequirePermissions(Permission.BILLING_MANAGE)
-  async createInvoice(@Body('companyId') companyId: string, @Body('orderIds') orderIds: string[]) {
-    return this.billingService.createInvoice(companyId, orderIds);
+  createInvoice(@Body() data: CreateInvoiceDto) {
+    return this.billingService.createInvoice(data.companyId, data.orderIds);
   }
 
-  @Patch('invoices/:id/pay')
-  @RequirePermissions(Permission.BILLING_MANAGE)
-  async markAsPaid(@Param('id') invoiceId: string) {
+  @Get('invoices')
+  getInvoices() {
+    return this.billingService.getInvoices();
+  }
+
+  @Get('invoices/:id')
+  getInvoice(@Param('id') invoiceId: string) {
+    return this.billingService.getInvoice(invoiceId);
+  }
+
+  @Post('invoices/:id/paid')
+  markAsPaid(@Param('id') invoiceId: string) {
     return this.billingService.markAsPaid(invoiceId);
   }
 }

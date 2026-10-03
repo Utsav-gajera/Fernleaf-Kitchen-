@@ -29,6 +29,10 @@ A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Rou
 - **Cloud Database Ready**:
   - Configured for SSL-enabled cloud databases like Neon or Supabase out-of-the-box.
   - No local database installation required.
+- **Company Billing**:
+  - Confirmed billable orders can be included in one company invoice only.
+  - Invoice totals use integer minor units and invoices can be marked paid.
+  - An order on an unpaid invoice must be removed before financial changes; paid invoices are financially immutable.
 
 ---
 

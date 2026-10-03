@@ -49,6 +49,11 @@ enum DropStatus {
   DELIVERED
 }
 
+enum InvoiceStatus {
+  UNPAID
+  PAID
+}
+
 // ============================================================================
 // STAFF & USER MANAGEMENT
 // ============================================================================
@@ -119,6 +124,7 @@ model Company {
   hiddenDishes     CompanyHiddenDish[]
   orders           Order[]
   drops            Drop[]
+  invoices         Invoice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -445,6 +451,7 @@ model Order {
   timelineEvents OrderTimelineEvent[]
   kitchenUnits   KitchenUnit[]
   dropOrders     DropOrder[]
+  invoiceOrders  InvoiceOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -454,6 +461,33 @@ model Order {
   @@index([status])
   @@index([deliveryDate])
   @@map("orders")
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  status      InvoiceStatus @default(UNPAID)
+  totalMinor  Int
+  paidAt      DateTime?
+  orders      InvoiceOrder[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([companyId, status])
+  @@map("invoices")
+}
+
+model InvoiceOrder {
+  id        String  @id @default(uuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  orderId   String  @unique
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  totalMinor Int
+  createdAt DateTime @default(now())
+
+  @@map("invoice_orders")
 }
 
 model Drop {
