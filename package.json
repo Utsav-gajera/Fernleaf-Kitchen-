@@ -1,19 +1,26 @@
 {
-  "name": "starter-boilerplate-monorepo",
+  "name": "kitchen-operations-admin-panel",
   "version": "1.0.0",
-  "description": "Full-stack starter boilerplate with Next.js, NestJS, Prisma, Cloud Database, and Role-Based Access Control",
+  "private": true,
+  "description": "Kitchen Operations Admin Panel Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev:backend": "npm --prefix backend run start:dev",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"magenta,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
-    "db:push": "npm --prefix backend run prisma:push",
-    "db:seed": "npm --prefix backend run prisma:seed",
-    "build:backend": "npm --prefix backend run build",
-    "build:frontend": "npm --prefix frontend run build",
-    "build": "npm run build:backend && npm run build:frontend"
+    "dev": "concurrently -n \"API,WEB\" -c \"magenta,cyan\" \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --prefix apps/api run start:dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:shared": "npm --prefix packages/shared run build",
+    "build:api": "npm --prefix apps/api run build",
+    "build:web": "npm --prefix apps/web run build",
+    "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\""
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "prettier": "^3.4.2"
   }
 }

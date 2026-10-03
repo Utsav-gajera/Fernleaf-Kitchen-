@@ -6,12 +6,12 @@ A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Rou
 
 ## ⚡ The Stack (Mandatory & Modern)
 
-| Layer | Technology | Key Features |
-|---|---|---|
-| **Frontend** | **Next.js 14+ (App Router)** | React 18, Sleek Dark Glassmorphism, Auth Provider Context, Role-Guarded UI |
-| **Backend** | **NestJS** | Modular Architecture, Passport JWT Authentication, RolesGuard, ValidationPipe |
-| **ORM** | **Prisma** | Type-safe queries, automatic migrations, seed scripts |
-| **Database** | **Cloud PostgreSQL** | Neon (Recommended) / Supabase / Railway / Render |
+| Layer        | Technology                   | Key Features                                                                  |
+| ------------ | ---------------------------- | ----------------------------------------------------------------------------- |
+| **Frontend** | **Next.js 14+ (App Router)** | React 18, Sleek Dark Glassmorphism, Auth Provider Context, Role-Guarded UI    |
+| **Backend**  | **NestJS**                   | Modular Architecture, Passport JWT Authentication, RolesGuard, ValidationPipe |
+| **ORM**      | **Prisma**                   | Type-safe queries, automatic migrations, seed scripts                         |
+| **Database** | **Cloud PostgreSQL**         | Neon (Recommended) / Supabase / Railway / Render                              |
 
 ---
 
@@ -35,12 +35,14 @@ A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Rou
 ## ☁️ Setting Up Your Free Cloud Database (Takes 1 Minute)
 
 ### Option 1: Neon Serverless Postgres (Recommended)
+
 1. Go to [https://neon.tech](https://neon.tech) and sign up (free, no credit card required).
 2. Click **Create Project** (choose your nearest region).
 3. Copy your Connection String (`postgresql://neondb_owner:***@ep-***.neon.tech/neondb?sslmode=require`).
 4. Paste it into `backend/.env` as `DATABASE_URL`.
 
 ### Option 2: Supabase
+
 1. Go to [https://supabase.com](https://supabase.com) and create a free project.
 2. In Project Settings → Database, copy the URI connection string.
 3. Paste it into `backend/.env` as `DATABASE_URL`.
@@ -50,13 +52,17 @@ A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Rou
 ## 🛠️ Quickstart (Running Locally)
 
 ### 1. Install Dependencies
+
 In the root directory, run:
+
 ```bash
 npm run install:all
 ```
-*(Or install each folder: `npm install` in root, `backend/`, and `frontend/`)*
+
+_(Or install each folder: `npm install` in root, `backend/`, and `frontend/`)_
 
 ### 2. Configure Environment Variables
+
 - In `backend/.env`:
   ```env
   PORT=3001
@@ -70,17 +76,22 @@ npm run install:all
   ```
 
 ### 3. Sync Database Schema & Seed Demo Users
+
 Push your Prisma schema to your cloud database and run the seed script:
+
 ```bash
 npm run db:push
 npm run db:seed
 ```
 
 ### 4. Start the Application
+
 Run both backend and frontend concurrently:
+
 ```bash
 npm run dev
 ```
+
 - **Frontend**: [http://localhost:3000](http://localhost:3000)
 - **Backend API**: [http://localhost:3001](http://localhost:3001)
 - **Health Check**: [http://localhost:3001/health](http://localhost:3001/health)
@@ -91,21 +102,23 @@ npm run dev
 
 The seed script creates two pre-configured accounts to test RBAC immediately:
 
-| Role | Email | Password | Allowed Endpoints |
-|---|---|---|---|
-| **ADMIN** | `admin@starter.dev` | `Admin123!` | `/auth/me`, `/auth/admin-only` (All) |
-| **USER** | `user@starter.dev` | `User123!` | `/auth/me` (Restricted from `/auth/admin-only`) |
+| Role      | Email               | Password    | Allowed Endpoints                               |
+| --------- | ------------------- | ----------- | ----------------------------------------------- |
+| **ADMIN** | `admin@starter.dev` | `Admin123!` | `/auth/me`, `/auth/admin-only` (All)            |
+| **USER**  | `user@starter.dev`  | `User123!`  | `/auth/me` (Restricted from `/auth/admin-only`) |
 
-*Tip: On the `/login` page, you can use the **1-Click Demo Fill** buttons to test without typing.*
+_Tip: On the `/login` page, you can use the **1-Click Demo Fill** buttons to test without typing._
 
 ---
 
 ## 🌐 Live Deployment Guide
 
 ### 1. Database (Cloud)
+
 - Use **Neon** or **Supabase** (Already live from the steps above).
 
 ### 2. Backend Deployment (Render / Railway / Fly.io)
+
 1. Push this repository to GitHub.
 2. Create a new Web Service on [Render](https://render.com) or [Railway](https://railway.app).
 3. Set **Root Directory** to `backend`.
@@ -118,6 +131,7 @@ The seed script creates two pre-configured accounts to test RBAC immediately:
    - `PORT`: `3001` (or let provider assign).
 
 ### 3. Frontend Deployment (Vercel)
+
 1. Import your GitHub repository into [Vercel](https://vercel.com).
 2. Set **Root Directory** to `frontend`.
 3. Add Environment Variable:
@@ -167,11 +181,11 @@ The seed script creates two pre-configured accounts to test RBAC immediately:
 
 ## 📝 API Endpoints Summary
 
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|---|
-| `GET` | `/health` | Server and Database connectivity check | No |
-| `POST` | `/auth/register` | Register a new user | No |
-| `POST` | `/auth/login` | Login with email & password (returns JWT) | No |
-| `POST` | `/auth/logout` | Logout (clears session) | No |
-| `GET` | `/auth/me` | Get current user profile | Yes (Bearer Token) |
-| `GET` | `/auth/admin-only` | Restricted to `ADMIN` role | Yes (Admin Role) |
+| Method | Endpoint           | Description                               | Auth Required      |
+| ------ | ------------------ | ----------------------------------------- | ------------------ |
+| `GET`  | `/health`          | Server and Database connectivity check    | No                 |
+| `POST` | `/auth/register`   | Register a new user                       | No                 |
+| `POST` | `/auth/login`      | Login with email & password (returns JWT) | No                 |
+| `POST` | `/auth/logout`     | Logout (clears session)                   | No                 |
+| `GET`  | `/auth/me`         | Get current user profile                  | Yes (Bearer Token) |
+| `GET`  | `/auth/admin-only` | Restricted to `ADMIN` role                | Yes (Admin Role)   |
