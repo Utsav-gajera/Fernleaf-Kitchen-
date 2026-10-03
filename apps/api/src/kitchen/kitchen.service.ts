@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { KitchenOrderStatus, KitchenUnitStatus, OrderStatus, Prisma } from '@prisma/client';
+import { KitchenUnitStatus, OrderStatus, Prisma } from '@prisma/client';
 import { Role } from '@project/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { KitchenPolicy } from './domain/kitchen-policy';
@@ -65,7 +65,7 @@ export class KitchenService {
         order: { deliveryDate: range },
         station: station ? { name: station } : undefined,
       },
-      include: { order: { select: { id: true, deliveryDate: true, deliveryTime: true, kitchenStartedAt: true, kitchenReadyAt: true } }, station: true },
+      include: { order: { select: { id: true, deliveryDate: true, deliveryTime: true, status: true } }, station: true },
       orderBy: { plannedKitchenReadyAt: 'asc' },
     });
     const now = Date.now();
@@ -117,19 +117,15 @@ export class KitchenService {
       if (updated.count !== 1) throw new BadRequestException('Kitchen unit state changed before it could be updated.');
       if (target === KitchenUnitStatus.STARTED) {
         await tx.order.updateMany({
-          where: {
-            id: current.orderId,
-            status: OrderStatus.CONFIRMED,
-            kitchenStatus: KitchenOrderStatus.PENDING,
-          },
-          data: { kitchenStatus: KitchenOrderStatus.STARTED, kitchenStartedAt: now },
+          where: { id: current.orderId, status: OrderStatus.CONFIRMED },
+          data: { status: OrderStatus.KITCHEN_IN_PROGRESS },
         });
       } else if (target === KitchenUnitStatus.DONE) {
         const remaining = await tx.kitchenUnit.count({ where: { orderId: current.orderId, status: { not: KitchenUnitStatus.DONE } } });
         if (remaining === 0) {
           await tx.order.updateMany({
-            where: { id: current.orderId, status: OrderStatus.CONFIRMED },
-            data: { kitchenStatus: KitchenOrderStatus.DONE, kitchenReadyAt: now },
+            where: { id: current.orderId, status: { in: [OrderStatus.CONFIRMED, OrderStatus.KITCHEN_IN_PROGRESS] } },
+            data: { status: OrderStatus.KITCHEN_READY },
           });
         }
       }
@@ -151,9 +147,7 @@ export class KitchenService {
       await tx.order.update({
         where: { id: orderId },
         data: {
-          kitchenStatus: KitchenOrderStatus.DONE,
-          kitchenReadyAt: now,
-          kitchenStartedAt: { set: now },
+          status: OrderStatus.KITCHEN_READY,
         },
       });
       return tx.order.findUnique({ where: { id: orderId }, include: { kitchenUnits: true } });

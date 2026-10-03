@@ -50,6 +50,11 @@ export default function Navbar() {
                 Kitchen
               </Link>
             )}
+            {(user.role === 'ADMIN' || user.role === 'DISPATCH') && (
+              <Link href="/dashboard/dispatch" className="btn-secondary btn-sm" id="nav-dispatch-btn">
+                Dispatch
+              </Link>
+            )}
 
             <div
               className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}

@@ -27,6 +27,10 @@ enum OrderStatus {
   DRAFT
   PLACED
   CONFIRMED
+  KITCHEN_IN_PROGRESS
+  KITCHEN_READY
+  DISPATCH_READY
+  OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
   REJECTED
@@ -38,12 +42,11 @@ enum KitchenUnitStatus {
   DONE
 }
 
-enum KitchenOrderStatus {
-  PENDING
-  STARTED
-  DONE
-
-  @@map("KitchenProgressStatus")
+enum DropStatus {
+  KITCHEN_READY
+  DISPATCH_READY
+  OUT_FOR_DELIVERY
+  DELIVERED
 }
 
 // ============================================================================
@@ -61,6 +64,7 @@ model StaffUser {
   // Relations
   defaultDriverCompanies Company[] @relation("CompanyDefaultDriver")
   createdOrders          Order[]   @relation("OrderCreatedByStaff")
+  assignedDrops          Drop[]    @relation("DropAssignedDriver")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -114,6 +118,7 @@ model Company {
   hiddenCategories CompanyHiddenCategory[]
   hiddenDishes     CompanyHiddenDish[]
   orders           Order[]
+  drops            Drop[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -436,13 +441,10 @@ model Order {
   deliveryFeeMinor    Int         @default(0)
   taxMinor            Int         @default(0)
   totalMinor          Int         @default(0)
-  kitchenStatus      KitchenOrderStatus @default(PENDING)
-  kitchenStartedAt    DateTime?
-  kitchenReadyAt     DateTime?
-
   lines          OrderLine[]
   timelineEvents OrderTimelineEvent[]
   kitchenUnits   KitchenUnit[]
+  dropOrders     DropOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -452,6 +454,41 @@ model Order {
   @@index([status])
   @@index([deliveryDate])
   @@map("orders")
+}
+
+model Drop {
+  id              String     @id @default(uuid())
+  groupingKey     String     @unique
+  companyId       String
+  company         Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  driverId        String?
+  driver          StaffUser? @relation("DropAssignedDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  status          DropStatus @default(KITCHEN_READY)
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  postalCode      String
+  deliveryTime    String
+  deliveryAt      DateTime
+  orders          DropOrder[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([deliveryAt, status])
+  @@index([companyId, deliveryAt])
+  @@map("drops")
+}
+
+model DropOrder {
+  id        String   @id @default(uuid())
+  dropId   String
+  drop     Drop     @relation(fields: [dropId], references: [id], onDelete: Cascade)
+  orderId  String   @unique
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([dropId, orderId])
+  @@map("drop_orders")
 }
 
 model CutoffProcessing {

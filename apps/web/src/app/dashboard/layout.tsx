@@ -11,6 +11,7 @@ const adminOnly = ['/dashboard/companies', '/dashboard/employees', '/dashboard/c
 function requiredRoles(pathname: string): Role[] | null {
   if (adminOnly.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return ['ADMIN'];
   if (pathname === '/dashboard/kitchen' || pathname.startsWith('/dashboard/kitchen/')) return ['KITCHEN'];
+  if (pathname === '/dashboard/dispatch' || pathname.startsWith('/dashboard/dispatch/')) return ['ADMIN', 'DISPATCH'];
   if (pathname === '/dashboard/orders' || pathname.startsWith('/dashboard/orders/')) return ['ADMIN', 'DISPATCH'];
   return null;
 }
