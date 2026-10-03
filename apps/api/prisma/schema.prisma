@@ -23,20 +23,30 @@ enum DishTemperature {
   COLD
 }
 
+enum OrderStatus {
+  DRAFT
+  PLACED
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
 // ============================================================================
 // STAFF & USER MANAGEMENT
 // ============================================================================
 
 model StaffUser {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  password  String
-  name      String?
-  role      StaffRole @default(ADMIN)
-  isActive  Boolean   @default(true)
+  id       String    @id @default(uuid())
+  email    String    @unique
+  password String
+  name     String?
+  role     StaffRole @default(ADMIN)
+  isActive Boolean   @default(true)
 
   // Relations
   defaultDriverCompanies Company[] @relation("CompanyDefaultDriver")
+  createdOrders          Order[]   @relation("OrderCreatedByStaff")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -49,49 +59,50 @@ model StaffUser {
 // ============================================================================
 
 model Company {
-  id                   String   @id @default(uuid())
-  name                 String
-  billingContactName   String?
-  billingContactEmail  String?
-  billingContactPhone  String?
+  id                  String  @id @default(uuid())
+  name                String
+  billingContactName  String?
+  billingContactEmail String?
+  billingContactPhone String?
 
   // Owner reference (One of its employees is the owner)
-  ownerId              String?  @unique
-  owner                Employee? @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId String?   @unique
+  owner   Employee? @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   // Pricing Tier
-  priceTierId          String?
-  priceTier            PriceTier? @relation(fields: [priceTierId], references: [id], onDelete: SetNull)
+  priceTierId String?
+  priceTier   PriceTier? @relation(fields: [priceTierId], references: [id], onDelete: SetNull)
 
   // Delivery defaults
-  defaultDeliveryTime  String   @default("12:00")
-  deliveryLeadMinutes  Int      @default(60)
-  defaultPackaging     String   @default("STANDARD")
+  defaultDeliveryTime  String     @default("12:00")
+  deliveryLeadMinutes  Int        @default(60)
+  defaultPackaging     String     @default("STANDARD")
   standingInstructions String?
   defaultDriverId      String?
   defaultDriver        StaffUser? @relation("CompanyDefaultDriver", fields: [defaultDriverId], references: [id], onDelete: SetNull)
 
   // Operating days (Company Calendar Mon-Fri default)
-  mon                  Boolean  @default(true)
-  tue                  Boolean  @default(true)
-  wed                  Boolean  @default(true)
-  thu                  Boolean  @default(true)
-  fri                  Boolean  @default(true)
-  sat                  Boolean  @default(false)
-  sun                  Boolean  @default(false)
+  mon Boolean @default(true)
+  tue Boolean @default(true)
+  wed Boolean @default(true)
+  thu Boolean @default(true)
+  fri Boolean @default(true)
+  sat Boolean @default(false)
+  sun Boolean @default(false)
 
-  isActive             Boolean  @default(true)
+  isActive Boolean @default(true)
 
   // Relations
-  domains              CompanyDomain[]
-  addresses            CompanyAddress[]
-  employees            Employee[] @relation("CompanyEmployees")
-  holidays             CompanyHoliday[]
-  hiddenCategories     CompanyHiddenCategory[]
-  hiddenDishes         CompanyHiddenDish[]
+  domains          CompanyDomain[]
+  addresses        CompanyAddress[]
+  employees        Employee[]              @relation("CompanyEmployees")
+  holidays         CompanyHoliday[]
+  hiddenCategories CompanyHiddenCategory[]
+  hiddenDishes     CompanyHiddenDish[]
+  orders           Order[]
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("companies")
 }
@@ -123,24 +134,25 @@ model CompanyAddress {
 }
 
 model Employee {
-  id                       String   @id @default(uuid())
+  id                       String  @id @default(uuid())
   companyId                String
-  company                  Company  @relation("CompanyEmployees", fields: [companyId], references: [id], onDelete: Cascade)
-  email                    String   @unique
+  company                  Company @relation("CompanyEmployees", fields: [companyId], references: [id], onDelete: Cascade)
+  email                    String  @unique
   name                     String
-  canChooseDeliveryAddress Boolean  @default(false)
-  canChangeDeliveryTime    Boolean  @default(false)
-  canChangePackaging       Boolean  @default(false)
+  canChooseDeliveryAddress Boolean @default(false)
+  canChangeDeliveryTime    Boolean @default(false)
+  canChangePackaging       Boolean @default(false)
 
   // Owner back-relation
-  ownedCompany             Company? @relation("CompanyOwner")
+  ownedCompany Company? @relation("CompanyOwner")
 
   // Preferences & Allergies
-  allergies                EmployeeAllergen[]
-  dietaryPreferences       EmployeeDietaryTag[]
+  allergies          EmployeeAllergen[]
+  dietaryPreferences EmployeeDietaryTag[]
+  orders             Order[]
 
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("employees")
 }
@@ -150,41 +162,41 @@ model Employee {
 // ============================================================================
 
 model Allergen {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
 
-  dishes      DishAllergen[]
-  options     OptionAllergen[]
-  employees   EmployeeAllergen[]
+  dishes    DishAllergen[]
+  options   OptionAllergen[]
+  employees EmployeeAllergen[]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("allergens")
 }
 
 model DietaryTag {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
 
-  dishes      DishDietaryTag[]
-  options     OptionDietaryTag[]
-  employees   EmployeeDietaryTag[]
+  dishes    DishDietaryTag[]
+  options   OptionDietaryTag[]
+  employees EmployeeDietaryTag[]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("dietary_tags")
 }
 
 model KitchenStation {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
 
-  dishes      Dish[]
+  dishes Dish[]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("kitchen_stations")
 }
@@ -196,54 +208,56 @@ model Dish {
   description    String?
   image          String?
   temperature    DishTemperature @default(HOT)
-  costPriceMinor Int             // Stored in integer minor units (cents)
+  costPriceMinor Int // Stored in integer minor units (cents)
   stationId      String?
   station        KitchenStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
   minQuantity    Int?
   isActive       Boolean         @default(true) // Deactivated, never hard-deleted
 
-  allergies          DishAllergen[]
-  dietaryTags        DishDietaryTag[]
-  optionGroups       DishOptionGroup[]
-  categories         CategoryDish[]
-  tierPrices         DishPrice[]
-  hiddenByCompanies  CompanyHiddenDish[]
+  allergies         DishAllergen[]
+  dietaryTags       DishDietaryTag[]
+  optionGroups      DishOptionGroup[]
+  categories        CategoryDish[]
+  tierPrices        DishPrice[]
+  hiddenByCompanies CompanyHiddenDish[]
+  orderLines        OrderLine[]
 
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("dishes")
 }
 
 model Option {
-  id             String   @id @default(uuid())
+  id             String  @id @default(uuid())
   name           String
   description    String?
-  costPriceMinor Int      // Stored in integer minor units (cents)
-  isActive       Boolean  @default(true)
+  costPriceMinor Int // Stored in integer minor units (cents)
+  isActive       Boolean @default(true)
 
-  allergies      OptionAllergen[]
-  dietaryTags    OptionDietaryTag[]
-  groups         OptionGroupOption[]
-  tierPrices     OptionPrice[]
+  allergies               OptionAllergen[]
+  dietaryTags             OptionDietaryTag[]
+  groups                  OptionGroupOption[]
+  tierPrices              OptionPrice[]
+  orderCombinationOptions OrderCombinationOption[]
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("options")
 }
 
 model OptionGroup {
-  id            String   @id @default(uuid())
+  id            String  @id @default(uuid())
   name          String
-  isRequired    Boolean  @default(false)
-  allowPortions Boolean  @default(false)
+  isRequired    Boolean @default(false)
+  allowPortions Boolean @default(false)
 
-  dishes        DishOptionGroup[]
-  options       OptionGroupOption[]
+  dishes  DishOptionGroup[]
+  options OptionGroupOption[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("option_groups")
 }
@@ -279,17 +293,17 @@ model OptionGroupOption {
 // ============================================================================
 
 model Category {
-  id                 String   @id @default(uuid())
-  name               String
-  displayOrder       Int      @default(0)
-  isActive           Boolean  @default(true)
-  isSecret           Boolean  @default(false)
+  id           String  @id @default(uuid())
+  name         String
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+  isSecret     Boolean @default(false)
 
-  dishes             CategoryDish[]
-  hiddenByCompanies  CompanyHiddenCategory[]
+  dishes            CategoryDish[]
+  hiddenByCompanies CompanyHiddenCategory[]
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("categories")
 }
@@ -319,11 +333,11 @@ model CompanyHiddenCategory {
 }
 
 model CompanyHiddenDish {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   dishId    String
-  dish      Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  dish      Dish    @relation(fields: [dishId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, dishId])
   @@map("company_hidden_dishes")
@@ -334,10 +348,10 @@ model CompanyHiddenDish {
 // ============================================================================
 
 model PriceTier {
-  id                String      @id @default(uuid())
-  name              String      @unique
-  description       String?
-  isDefault         Boolean     @default(false)
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  isDefault   Boolean @default(false)
 
   // Derived pricing (e.g. Cost x 2.4 or Standard + 15%)
   derivedFromTierId String?
@@ -346,12 +360,12 @@ model PriceTier {
   multiplier        Float?
   markupPercent     Float?
 
-  companies         Company[]
-  dishPrices        DishPrice[]
-  optionPrices      OptionPrice[]
+  companies    Company[]
+  dishPrices   DishPrice[]
+  optionPrices OptionPrice[]
 
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("price_tiers")
 }
@@ -362,7 +376,7 @@ model DishPrice {
   priceTier   PriceTier @relation(fields: [priceTierId], references: [id], onDelete: Cascade)
   dishId      String
   dish        Dish      @relation(fields: [dishId], references: [id], onDelete: Cascade)
-  priceMinor  Int       // Price in integer minor units (cents)
+  priceMinor  Int // Price in integer minor units (cents)
 
   @@unique([priceTierId, dishId])
   @@map("dish_prices")
@@ -374,10 +388,107 @@ model OptionPrice {
   priceTier   PriceTier @relation(fields: [priceTierId], references: [id], onDelete: Cascade)
   optionId    String
   option      Option    @relation(fields: [optionId], references: [id], onDelete: Cascade)
-  priceMinor  Int       // Price in integer minor units (cents)
+  priceMinor  Int // Price in integer minor units (cents)
 
   @@unique([priceTierId, optionId])
   @@map("option_prices")
+}
+
+// ============================================================================
+// ORDERS & HISTORICAL SNAPSHOTS
+// ============================================================================
+
+model Order {
+  id                  String      @id @default(uuid())
+  companyId           String
+  company             Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId          String
+  employee            Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdByStaffId    String?
+  createdByStaff      StaffUser?  @relation("OrderCreatedByStaff", fields: [createdByStaffId], references: [id], onDelete: SetNull)
+  status              OrderStatus @default(DRAFT)
+  deliveryDate        DateTime
+  deliveryTime        String
+  addressLine1        String
+  addressLine2        String?
+  city                String
+  postalCode          String
+  addressInstructions String?
+  packaging           String
+  subtotalMinor       Int         @default(0)
+  deliveryFeeMinor    Int         @default(0)
+  taxMinor            Int         @default(0)
+  totalMinor          Int         @default(0)
+
+  lines          OrderLine[]
+  timelineEvents OrderTimelineEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([deliveryDate])
+  @@map("orders")
+}
+
+model OrderLine {
+  id                 String  @id @default(uuid())
+  orderId            String
+  order              Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishId             String?
+  dish               Dish?   @relation(fields: [dishId], references: [id], onDelete: SetNull)
+  dishNameSnapshot   String
+  skuSnapshot        String
+  dishUnitPriceMinor Int
+  quantity           Int
+  totalMinor         Int
+
+  combinations OrderCombination[]
+
+  @@index([orderId])
+  @@index([dishId])
+  @@map("order_lines")
+}
+
+model OrderCombination {
+  id                      String    @id @default(uuid())
+  orderLineId             String
+  orderLine               OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  optionGroupId           String?
+  optionGroupNameSnapshot String
+
+  options OrderCombinationOption[]
+
+  @@index([orderLineId])
+  @@map("order_combinations")
+}
+
+model OrderCombinationOption {
+  id                 String           @id @default(uuid())
+  combinationId      String
+  combination        OrderCombination @relation(fields: [combinationId], references: [id], onDelete: Cascade)
+  optionId           String?
+  option             Option?          @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  optionNameSnapshot String
+  optionPriceMinor   Int
+
+  @@index([combinationId])
+  @@index([optionId])
+  @@map("order_combination_options")
+}
+
+model OrderTimelineEvent {
+  id        String      @id @default(uuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+  @@map("order_timeline_events")
 }
 
 // ============================================================================
@@ -385,13 +496,13 @@ model OptionPrice {
 // ============================================================================
 
 model PlatformSettings {
-  id                         String   @id @default("default")
-  kitchenTimeZone            String   @default("Asia/Kolkata")
-  cutOffTime                 String   @default("16:00")
-  cutOffWorkingDays          Int      @default(2)
-  dispatchLeadMinutes        Int      @default(60)
-  kitchenReadyBufferMinutes  Int      @default(30)
-  updatedAt                  DateTime @updatedAt
+  id                        String   @id @default("default")
+  kitchenTimeZone           String   @default("Asia/Kolkata")
+  cutOffTime                String   @default("16:00")
+  cutOffWorkingDays         Int      @default(2)
+  dispatchLeadMinutes       Int      @default(60)
+  kitchenReadyBufferMinutes Int      @default(30)
+  updatedAt                 DateTime @updatedAt
 
   @@map("platform_settings")
 }
