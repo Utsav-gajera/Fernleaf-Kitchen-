@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { MenuService } from './menu.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
@@ -12,8 +12,14 @@ export class MenuController {
 
   @Get('preview')
   @RequirePermissions(Permission.ORDER_VIEW)
-  async getMenuForEmployee(@Query('companyId') companyId?: string) {
-    return this.menuService.getMenuForEmployee(companyId);
+  async getMenuPreview(@Query('employeeId') employeeId: string) {
+    return this.menuService.getMenuForEmployee(employeeId);
+  }
+
+  @Get('employee/:employeeId')
+  @RequirePermissions(Permission.ORDER_VIEW)
+  async getEmployeeMenu(@Param('employeeId') employeeId: string) {
+    return this.menuService.getMenuForEmployee(employeeId);
   }
 
   @Get('categories')

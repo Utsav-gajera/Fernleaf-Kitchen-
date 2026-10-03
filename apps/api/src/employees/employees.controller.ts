@@ -12,18 +12,34 @@ import { Permission } from '@project/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
+import { MenuService } from '../menu/menu.service';
 import { CreateEmployeeDto, EmployeeListQueryDto, UpdateEmployeeDto } from './dto/employee.dto';
 import { EmployeesService } from './employees.service';
 
 @Controller('employees')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly menuService: MenuService,
+  ) {}
 
   @Get()
   @RequirePermissions(Permission.EMPLOYEE_MANAGE)
   async findAll(@Query() query: EmployeeListQueryDto) {
     return this.employeesService.findAll(query.page, query.limit);
+  }
+
+  @Get(':id/menu')
+  @RequirePermissions(Permission.ORDER_VIEW)
+  async getEmployeeMenu(@Param('id') id: string) {
+    return this.menuService.getMenuForEmployee(id);
+  }
+
+  @Get(':id/menu/preview')
+  @RequirePermissions(Permission.ORDER_VIEW)
+  async previewEmployeeMenu(@Param('id') id: string) {
+    return this.menuService.getMenuForEmployee(id);
   }
 
   @Get(':id')

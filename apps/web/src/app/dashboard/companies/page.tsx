@@ -46,6 +46,13 @@ type CompanyListResponse = {
   totalPages: number;
 };
 
+type MenuVisibility = {
+  categories: Array<{ id: string; name: string; isSecret: boolean }>;
+  dishes: Array<{ id: string; name: string; sku: string }>;
+  hiddenCategoryIds: string[];
+  hiddenDishIds: string[];
+};
+
 const emptyForm = {
   name: '',
   billingContactName: '',
@@ -106,6 +113,8 @@ export default function CompanyAdminPage() {
   const [domainInput, setDomainInput] = useState('');
   const [priceTiers, setPriceTiers] = useState<Array<{ id: string; name: string }>>([]);
   const [companyEmployees, setCompanyEmployees] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [menuVisibility, setMenuVisibility] = useState<MenuVisibility | null>(null);
+  const [isSavingVisibility, setIsSavingVisibility] = useState(false);
 
   const workingDaysSummary = useMemo(
     () =>
@@ -152,6 +161,17 @@ export default function CompanyAdminPage() {
       setCompanyEmployees([]);
     }
   }, [selectedCompanyId, loadCompanyEmployees]);
+
+  useEffect(() => {
+    if (!selectedCompanyId) {
+      setMenuVisibility(null);
+      return;
+    }
+
+    apiRequest<MenuVisibility>(`/companies/${selectedCompanyId}/menu-visibility`)
+      .then(setMenuVisibility)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load menu visibility'));
+  }, [selectedCompanyId]);
 
   useEffect(() => {
     const loadPriceTiers = async () => {
@@ -302,6 +322,45 @@ export default function CompanyAdminPage() {
       await loadCompanies(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update company defaults');
+    }
+  };
+
+  const toggleHiddenCategory = (categoryId: string) => {
+    setMenuVisibility((current) => {
+      if (!current) return current;
+      const hiddenCategoryIds = current.hiddenCategoryIds.includes(categoryId)
+        ? current.hiddenCategoryIds.filter((id) => id !== categoryId)
+        : [...current.hiddenCategoryIds, categoryId];
+      return { ...current, hiddenCategoryIds };
+    });
+  };
+
+  const toggleHiddenDish = (dishId: string) => {
+    setMenuVisibility((current) => {
+      if (!current) return current;
+      const hiddenDishIds = current.hiddenDishIds.includes(dishId)
+        ? current.hiddenDishIds.filter((id) => id !== dishId)
+        : [...current.hiddenDishIds, dishId];
+      return { ...current, hiddenDishIds };
+    });
+  };
+
+  const saveMenuVisibility = async () => {
+    if (!selectedCompanyId || !menuVisibility) return;
+    try {
+      setIsSavingVisibility(true);
+      const updated = await apiRequest<MenuVisibility>(`/companies/${selectedCompanyId}/menu-visibility`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          hiddenCategoryIds: menuVisibility.hiddenCategoryIds,
+          hiddenDishIds: menuVisibility.hiddenDishIds,
+        }),
+      });
+      setMenuVisibility(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save menu visibility');
+    } finally {
+      setIsSavingVisibility(false);
     }
   };
 
@@ -621,6 +680,45 @@ export default function CompanyAdminPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                <h3 style={{ marginBottom: '0.8rem' }}>Menu visibility</h3>
+                {!menuVisibility ? (
+                  <div style={{ color: 'var(--text-muted)' }}>Loading menu visibility...</div>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.85rem' }}>Hidden categories</strong>
+                      {menuVisibility.categories.map((category) => (
+                        <label key={category.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={menuVisibility.hiddenCategoryIds.includes(category.id)}
+                            onChange={() => toggleHiddenCategory(category.id)}
+                          />
+                          <span>{category.name}{category.isSecret ? ' (secret)' : ''}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '220px', overflowY: 'auto', marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.85rem' }}>Hidden dishes</strong>
+                      {menuVisibility.dishes.map((dish) => (
+                        <label key={dish.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={menuVisibility.hiddenDishIds.includes(dish.id)}
+                            onChange={() => toggleHiddenDish(dish.id)}
+                          />
+                          <span>{dish.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>({dish.sku})</span></span>
+                        </label>
+                      ))}
+                    </div>
+                    <button type="button" className="btn-primary" onClick={saveMenuVisibility} disabled={isSavingVisibility}>
+                      {isSavingVisibility ? 'Saving...' : 'Save menu visibility'}
+                    </button>
+                  </>
+                )}
               </div>
 
               <div className="glass-panel" style={{ padding: '1.5rem' }}>

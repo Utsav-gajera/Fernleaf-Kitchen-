@@ -146,6 +146,10 @@ export default function DashboardPage() {
             <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Pricing</div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Review tiers, derived pricing, and missing dish prices.</div>
           </Link>
+          <Link href="/dashboard/menu" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Menu Preview</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Check the exact employee-facing menu for a company and employee.</div>
+          </Link>
         </div>
       )}
 

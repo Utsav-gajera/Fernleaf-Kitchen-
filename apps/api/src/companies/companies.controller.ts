@@ -24,6 +24,7 @@ import {
   UpdateCompanyDto,
   UpdateCompanyWorkingDaysDto,
 } from './dto/company.dto';
+import { UpdateCompanyMenuVisibilityDto } from './dto/company-menu-visibility.dto';
 
 @Controller('companies')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -122,5 +123,20 @@ export class CompaniesController {
   @RequirePermissions(Permission.COMPANY_MANAGE)
   async updateDefaultDriver(@Param('id') id: string, @Body('defaultDriverId') defaultDriverId: string) {
     return this.companiesService.updateDefaultDriver(id, defaultDriverId);
+  }
+
+  @Get(':id/menu-visibility')
+  @RequirePermissions(Permission.COMPANY_MANAGE)
+  async getMenuVisibility(@Param('id') id: string) {
+    return this.companiesService.getMenuVisibility(id);
+  }
+
+  @Patch(':id/menu-visibility')
+  @RequirePermissions(Permission.COMPANY_MANAGE)
+  async updateMenuVisibility(
+    @Param('id') id: string,
+    @Body() data: UpdateCompanyMenuVisibilityDto,
+  ) {
+    return this.companiesService.updateMenuVisibility(id, data);
   }
 }

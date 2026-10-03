@@ -13,6 +13,7 @@ import {
   UpdateCompanyDto,
   UpdateCompanyWorkingDaysDto,
 } from './dto/company.dto';
+import { UpdateCompanyMenuVisibilityDto } from './dto/company-menu-visibility.dto';
 
 @Injectable()
 export class CompaniesService {
@@ -455,5 +456,80 @@ export class CompaniesService {
       data: { defaultDriverId },
       include: this.companyInclude,
     });
+  }
+
+  async getMenuVisibility(companyId: string) {
+    await this.ensureCompany(companyId);
+    const [categories, dishes, hiddenCategories, hiddenDishes] = await this.prisma.$transaction([
+      this.prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, isSecret: true },
+      }),
+      this.prisma.dish.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, sku: true },
+      }),
+      this.prisma.companyHiddenCategory.findMany({
+        where: { companyId },
+        select: { categoryId: true },
+      }),
+      this.prisma.companyHiddenDish.findMany({
+        where: { companyId },
+        select: { dishId: true },
+      }),
+    ]);
+
+    return {
+      categories,
+      dishes,
+      hiddenCategoryIds: hiddenCategories.map((item) => item.categoryId),
+      hiddenDishIds: hiddenDishes.map((item) => item.dishId),
+    };
+  }
+
+  async updateMenuVisibility(
+    companyId: string,
+    data: UpdateCompanyMenuVisibilityDto,
+  ) {
+    await this.ensureCompany(companyId);
+    const categoryIds = [...new Set(data.hiddenCategoryIds)];
+    const dishIds = [...new Set(data.hiddenDishIds)];
+
+    const [categories, dishes] = await this.prisma.$transaction([
+      this.prisma.category.findMany({
+        where: { id: { in: categoryIds }, isActive: true },
+        select: { id: true },
+      }),
+      this.prisma.dish.findMany({
+        where: { id: { in: dishIds }, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+
+    if (categories.length !== categoryIds.length) {
+      throw new BadRequestException('One or more hidden categories are invalid or inactive.');
+    }
+    if (dishes.length !== dishIds.length) {
+      throw new BadRequestException('One or more hidden dishes are invalid or inactive.');
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.companyHiddenCategory.deleteMany({ where: { companyId } });
+      await transaction.companyHiddenDish.deleteMany({ where: { companyId } });
+      if (categoryIds.length) {
+        await transaction.companyHiddenCategory.createMany({
+          data: categoryIds.map((categoryId) => ({ companyId, categoryId })),
+        });
+      }
+      if (dishIds.length) {
+        await transaction.companyHiddenDish.createMany({
+          data: dishIds.map((dishId) => ({ companyId, dishId })),
+        });
+      }
+    });
+
+    return this.getMenuVisibility(companyId);
   }
 }
