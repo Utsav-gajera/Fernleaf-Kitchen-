@@ -1,0 +1,19 @@
+{
+  "name": "starter-boilerplate-monorepo",
+  "version": "1.0.0",
+  "description": "Full-stack starter boilerplate with Next.js, NestJS, Prisma, Cloud Database, and Role-Based Access Control",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run start:dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"magenta,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "db:push": "npm --prefix backend run prisma:push",
+    "db:seed": "npm --prefix backend run prisma:seed",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
