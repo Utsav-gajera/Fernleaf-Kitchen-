@@ -55,6 +55,11 @@ export default function Navbar() {
                 Dispatch
               </Link>
             )}
+            {user.role === 'DRIVER' && (
+              <Link href="/dashboard/driver" className="btn-secondary btn-sm" id="nav-driver-btn">
+                My drops
+              </Link>
+            )}
 
             <div
               className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}

@@ -470,6 +470,10 @@ model Drop {
   postalCode      String
   deliveryTime    String
   deliveryAt      DateTime
+  deliveredAt     DateTime?
+  deliveryNote    String?
+  deliveryPhotoUrl String?
+  onTime          Boolean?
   orders          DropOrder[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

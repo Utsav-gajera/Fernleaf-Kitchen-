@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { Permission } from '@project/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
 import { DispatchService } from './dispatch.service';
+import { DeliverDropDto } from './dto/deliver-drop.dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -44,5 +45,21 @@ export class DispatchController {
   @RequirePermissions(Permission.DISPATCH_UPDATE)
   markDelivered(@Param('id') dropId: string) {
     return this.dispatchService.markDelivered(dropId);
+  }
+
+  @Get('driver/drops/today')
+  @RequirePermissions(Permission.DRIVER_VIEW_OWN)
+  getDriverDropsToday(@Request() request: { user: { id: string } }) {
+    return this.dispatchService.getDriverDropsToday(request.user.id);
+  }
+
+  @Post('driver/drops/:id/deliver')
+  @RequirePermissions(Permission.DRIVER_DELIVER)
+  deliverDrop(
+    @Param('id') dropId: string,
+    @Body() data: DeliverDropDto,
+    @Request() request: { user: { id: string } },
+  ) {
+    return this.dispatchService.deliverDrop(dropId, request.user.id, data);
   }
 }
