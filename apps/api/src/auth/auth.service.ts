@@ -4,7 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { Role } from '@prisma/client';
+import { StaffRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -14,7 +14,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({
+    const existing = await this.prisma.staffUser.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
 
@@ -23,9 +23,11 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const assignedRole = dto.role === 'ADMIN' ? Role.ADMIN : Role.USER;
+    const assignedRole = (dto.role && Object.values(StaffRole).includes(dto.role as StaffRole))
+      ? (dto.role as StaffRole)
+      : StaffRole.ADMIN;
 
-    const user = await this.prisma.user.create({
+    const user = await this.prisma.staffUser.create({
       data: {
         email: dto.email.toLowerCase(),
         password: hashedPassword,
@@ -51,7 +53,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.staffUser.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
 
