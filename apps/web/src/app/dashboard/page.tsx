@@ -138,6 +138,10 @@ export default function DashboardPage() {
             <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Employees</div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Maintain employee assignments, allergies and permissions.</div>
           </Link>
+          <Link href="/dashboard/catalogue" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Catalogue</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Manage dishes, reusable options, option groups, categories, and menu reference data.</div>
+          </Link>
         </div>
       )}
 
