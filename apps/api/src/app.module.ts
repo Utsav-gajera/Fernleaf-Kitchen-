@@ -18,7 +18,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 
 @Controller()
 class AppController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get()
   getRoot() {

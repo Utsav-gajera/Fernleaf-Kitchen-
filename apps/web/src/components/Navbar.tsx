@@ -25,7 +25,7 @@ export default function Navbar() {
             <Layers size={20} color="#fff" />
           </div>
           <span style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>
-            Game<span className="gradient-text">Spotlight</span>
+            FernLeaf <span className="gradient-text">Kitchen</span>
           </span>
         </Link>
       </div>

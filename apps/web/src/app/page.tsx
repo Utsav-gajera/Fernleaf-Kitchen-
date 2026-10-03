@@ -28,7 +28,7 @@ export default function HomePage() {
             letterSpacing: '-0.03em',
           }}
         >
-          Welcome to <span className="gradient-text">GameSpotlight</span>
+          Welcome to <span className="gradient-text">FernLeaf Kitchen</span>
         </h1>
 
         <p

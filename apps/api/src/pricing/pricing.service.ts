@@ -6,7 +6,21 @@ export class PricingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getTiers() {
-    return { message: 'Price tiers retrieved (placeholder)', data: [] };
+    const tiers = await this.prisma.priceTier.findMany({
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isDefault: true,
+        multiplier: true,
+      },
+    });
+
+    return {
+      message: 'Price tiers retrieved successfully.',
+      data: tiers,
+    };
   }
 
   async calculateDishPrice(dishId: string, companyTierId?: string) {

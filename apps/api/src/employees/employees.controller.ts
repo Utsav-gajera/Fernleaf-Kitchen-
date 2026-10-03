@@ -1,9 +1,19 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { EmployeesService } from './employees.service';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { Permission } from '@project/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
-import { Permission } from '@project/shared';
+import { CreateEmployeeDto, EmployeeListQueryDto, UpdateEmployeeDto } from './dto/employee.dto';
+import { EmployeesService } from './employees.service';
 
 @Controller('employees')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -12,8 +22,8 @@ export class EmployeesController {
 
   @Get()
   @RequirePermissions(Permission.EMPLOYEE_MANAGE)
-  async findAll() {
-    return this.employeesService.findAll();
+  async findAll(@Query() query: EmployeeListQueryDto) {
+    return this.employeesService.findAll(query.page, query.limit);
   }
 
   @Get(':id')
@@ -24,13 +34,13 @@ export class EmployeesController {
 
   @Post()
   @RequirePermissions(Permission.EMPLOYEE_MANAGE)
-  async create(@Body() data: Record<string, unknown>) {
+  async create(@Body() data: CreateEmployeeDto) {
     return this.employeesService.create(data);
   }
 
   @Patch(':id')
   @RequirePermissions(Permission.EMPLOYEE_MANAGE)
-  async update(@Param('id') id: string, @Body() data: Record<string, unknown>) {
+  async update(@Param('id') id: string, @Body() data: UpdateEmployeeDto) {
     return this.employeesService.update(id, data);
   }
 }

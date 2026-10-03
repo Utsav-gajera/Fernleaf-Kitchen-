@@ -4,8 +4,8 @@ import { AuthProvider } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'GameSpotlight',
-  description: 'Your personalized gaming dashboard.',
+  title: 'FernLeaf Kitchen',
+  description: 'FernLeaf Kitchen dashboard.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               borderTop: '1px solid var(--border-color)',
             }}
           >
-            <span>&copy; {new Date().getFullYear()} GameSpotlight</span>
+            <span>&copy; {new Date().getFullYear()} FernLeaf Kitchen</span>
           </footer>
         </AuthProvider>
       </body>

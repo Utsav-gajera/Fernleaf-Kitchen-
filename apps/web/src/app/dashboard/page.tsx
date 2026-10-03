@@ -121,6 +121,26 @@ export default function DashboardPage() {
         </p>
       </div>
 
+      {isAdmin && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem',
+          }}
+        >
+          <Link href="/dashboard/companies" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Companies</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Manage company records, domains, owners and delivery defaults.</div>
+          </Link>
+          <Link href="/dashboard/employees" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Employees</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Maintain employee assignments, allergies and permissions.</div>
+          </Link>
+        </div>
+      )}
+
       {/* Role-Specific Info */}
       <div
         style={{

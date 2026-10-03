@@ -20,11 +20,16 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = data?.message
-      ? Array.isArray(data.message)
-        ? data.message.join(', ')
-        : data.message
-      : `Request failed with status ${response.status}`;
+    let errorMsg = `Request failed with status ${response.status}`;
+
+    if (data?.message) {
+      if (Array.isArray(data.message)) {
+        errorMsg = data.message.join(', ');
+      } else {
+        errorMsg = data.message;
+      }
+    }
+
     throw new Error(errorMsg);
   }
 
