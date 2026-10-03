@@ -86,20 +86,57 @@ async function seedStaffUsers() {
 async function seedReferenceData() {
   const standardTier = await prisma.priceTier.upsert({
     where: { name: 'Standard' },
-    update: { isDefault: true },
-    create: { name: 'Standard', isDefault: true },
+    update: {
+      isDefault: true,
+      description: 'Default platform pricing',
+      multiplier: 2.8,
+      markupPercent: null,
+    },
+    create: {
+      name: 'Standard',
+      description: 'Default platform pricing',
+      isDefault: true,
+      multiplier: 2.8,
+      markupPercent: null,
+    },
   });
 
   const enterpriseTier = await prisma.priceTier.upsert({
     where: { name: 'Enterprise' },
-    update: { isDefault: false },
-    create: { name: 'Enterprise', isDefault: false },
+    update: {
+      isDefault: false,
+      description: 'Discounted bulk pricing for large accounts',
+      derivedFromTierId: standardTier.id,
+      multiplier: null,
+      markupPercent: 15,
+    },
+    create: {
+      name: 'Enterprise',
+      description: 'Discounted bulk pricing for large accounts',
+      isDefault: false,
+      derivedFromTierId: standardTier.id,
+      multiplier: null,
+      markupPercent: 15,
+    },
   });
 
   const partnerTier = await prisma.priceTier.upsert({
     where: { name: 'Partner' },
-    update: { isDefault: false },
-    create: { name: 'Partner', isDefault: false },
+    update: {
+      isDefault: false,
+      description: 'Premium white-glove partner pricing',
+      derivedFromTierId: standardTier.id,
+      multiplier: null,
+      markupPercent: 25,
+    },
+    create: {
+      name: 'Partner',
+      description: 'Premium white-glove partner pricing',
+      isDefault: false,
+      derivedFromTierId: standardTier.id,
+      multiplier: null,
+      markupPercent: 25,
+    },
   });
 
   const hotStation = await prisma.kitchenStation.upsert({
@@ -562,23 +599,26 @@ async function seedPrices({ dishData, optionData, standardTier, enterpriseTier, 
 
   for (const dish of dishData) {
     for (const { tier, multiplier } of tiers) {
+      const priceMinor = Math.max(0, Math.round(dish.costPriceMinor * multiplier));
       await prisma.dishPrice.upsert({
         where: { id: `dp-${dish.id}-${tier.id}` },
-        update: { priceMinor: Math.round(dish.costPriceMinor * multiplier) },
-        create: { id: `dp-${dish.id}-${tier.id}`, dishId: dish.id, priceTierId: tier.id, priceMinor: Math.round(dish.costPriceMinor * multiplier) },
+        update: { priceMinor },
+        create: { id: `dp-${dish.id}-${tier.id}`, dishId: dish.id, priceTierId: tier.id, priceMinor },
       });
     }
   }
 
   for (const option of optionData) {
     for (const { tier, multiplier } of tiers) {
+      const priceMinor = Math.max(0, Math.round(option.costPriceMinor * multiplier));
       await prisma.optionPrice.upsert({
         where: { id: `op-${option.id}-${tier.id}` },
-        update: { priceMinor: Math.round(option.costPriceMinor * multiplier) },
-        create: { id: `op-${option.id}-${tier.id}`, optionId: option.id, priceTierId: tier.id, priceMinor: Math.round(option.costPriceMinor * multiplier) },
+        update: { priceMinor },
+        create: { id: `op-${option.id}-${tier.id}`, optionId: option.id, priceTierId: tier.id, priceMinor },
       });
     }
   }
+
   console.log('  ✅ Dish & option prices seeded');
 }
 

@@ -92,6 +92,27 @@ export class CompaniesService {
     }
   }
 
+  private async ensureNoDomainConflict(domains: string[], companyId?: string) {
+    const seen = new Set<string>();
+
+    for (const rawDomain of domains) {
+      const normalized = this.validateDomain(rawDomain);
+
+      if (seen.has(normalized)) {
+        throw new BadRequestException(`Duplicate domain '${normalized}' in the same request.`);
+      }
+      seen.add(normalized);
+
+      const existing = await this.prisma.companyDomain.findUnique({
+        where: { domain: normalized },
+      });
+
+      if (existing && (!companyId || existing.companyId !== companyId)) {
+        throw new BadRequestException(`Domain '${normalized}' is already assigned to another company.`);
+      }
+    }
+  }
+
   async findAll(page = 1, limit = 10) {
     const safePage = Number(page) > 0 ? Number(page) : 1;
     const safeLimit = Number(limit) > 0 ? Number(limit) : 10;
@@ -132,6 +153,10 @@ export class CompaniesService {
 
     if (data.defaultDriverId) {
       await this.ensureDriverExists(data.defaultDriverId);
+    }
+
+    if (Array.isArray(data.domains) && data.domains.length > 0) {
+      await this.ensureNoDomainConflict(data.domains);
     }
 
     const company = await this.prisma.company.create({
@@ -225,6 +250,17 @@ export class CompaniesService {
 
   async addDomain(companyId: string, domain: string) {
     const normalized = this.validateDomain(domain);
+
+    const existing = await this.prisma.companyDomain.findUnique({
+      where: { domain: normalized },
+    });
+
+    if (existing) {
+      if (existing.companyId === companyId) {
+        throw new BadRequestException(`Domain '${normalized}' is already assigned to this company.`);
+      }
+      throw new BadRequestException(`Domain '${normalized}' is already assigned to another company.`);
+    }
 
     try {
       return await this.prisma.companyDomain.create({

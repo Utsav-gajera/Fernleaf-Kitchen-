@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { PricingService } from './pricing.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
@@ -20,5 +20,29 @@ export class PricingController {
   @RequirePermissions(Permission.CATALOGUE_MANAGE)
   async calculateDishPrice(@Query('dishId') dishId: string, @Query('tierId') tierId?: string) {
     return this.pricingService.calculateDishPrice(dishId, tierId);
+  }
+
+  @Get('missing')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  async getMissingPrices(@Query('tierId') tierId?: string) {
+    return this.pricingService.getMissingPrices(tierId);
+  }
+
+  @Get('overrides')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  async getTierPriceOverrides(@Query('tierId') tierId: string) {
+    return this.pricingService.getTierPriceOverrides(tierId);
+  }
+
+  @Post('dish-price')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  async upsertDishPriceOverride(@Body() body: { tierId: string; dishId: string; priceMinor: number }) {
+    return this.pricingService.upsertDishPriceOverride(body.tierId, body.dishId, Number(body.priceMinor));
+  }
+
+  @Post('option-price')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  async upsertOptionPriceOverride(@Body() body: { tierId: string; optionId: string; priceMinor: number }) {
+    return this.pricingService.upsertOptionPriceOverride(body.tierId, body.optionId, Number(body.priceMinor));
   }
 }

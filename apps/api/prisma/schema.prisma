@@ -344,6 +344,7 @@ model PriceTier {
   derivedFromTier   PriceTier?  @relation("TierDerivation", fields: [derivedFromTierId], references: [id], onDelete: SetNull)
   derivedTiers      PriceTier[] @relation("TierDerivation")
   multiplier        Float?
+  markupPercent     Float?
 
   companies         Company[]
   dishPrices        DishPrice[]
