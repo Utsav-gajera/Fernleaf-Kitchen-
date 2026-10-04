@@ -1,19 +1,19 @@
 import Link from 'next/link';
+import { ArrowUpRight, ChefHat, Grid2X2, Leaf, ListFilter, Tags } from 'lucide-react';
 
 const catalogSections = [
-  { href: '/dashboard/catalogue/dishes', title: 'Dishes', description: 'Create, update, and manage menu items and dish relations.' },
-  { href: '/dashboard/catalogue/options', title: 'Options', description: 'Manage reusable add-ons and their metadata.' },
-  { href: '/dashboard/catalogue/option-groups', title: 'Option Groups', description: 'Group related options and configure required/portion rules.' },
-  { href: '/dashboard/catalogue/categories', title: 'Categories', description: 'Organize menu categories and display order.' },
-  { href: '/dashboard/catalogue/reference-data', title: 'Reference Data', description: 'Manage allergens, dietary tags, and kitchen stations.' },
+  { href: '/dashboard/catalogue/dishes', title: 'Dishes', description: 'Add meals and decide where they appear.', icon: ChefHat },
+  { href: '/dashboard/catalogue/options', title: 'Add-ons', description: 'Create extras employees can choose with a dish.', icon: Tags },
+  { href: '/dashboard/catalogue/option-groups', title: 'Add-on groups', description: 'Put related choices together, like sides or drinks.', icon: Grid2X2 },
+  { href: '/dashboard/catalogue/categories', title: 'Categories', description: 'Organize dishes into sections of the menu.', icon: ListFilter },
+  { href: '/dashboard/catalogue/reference-data', title: 'Dietary & kitchen details', description: 'Manage allergens, dietary labels and prep stations.', icon: Leaf },
 ];
 
 export default function CatalogueSelectionPage() {
   return (
-    <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Catalogue</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Choose the catalogue item you want to manage.</p>
+    <div className="container" style={{ paddingBottom: '4rem' }}>
+      <div className="page-heading">
+        <div><span className="page-eyebrow">Menu management</span><h1 className="page-title">Menu catalogue</h1><p className="page-subtitle">Build your menu step by step. Set up add-ons and categories, then create dishes and connect them together.</p></div>
       </div>
 
       <div
@@ -27,16 +27,10 @@ export default function CatalogueSelectionPage() {
           <Link
             key={section.href}
             href={section.href}
-            className="glass-panel"
-            style={{
-              display: 'block',
-              padding: '1.25rem 1.1rem',
-              textDecoration: 'none',
-              transition: 'transform 0.2s ease',
-            }}
+            className="glass-panel surface-link"
           >
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem' }}>{section.title}</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>{section.description}</div>
+            <div><h2 style={{ fontSize: '1.05rem', marginBottom: 8 }}>{section.title}</h2><p className="help-note">{section.description}</p><span className="page-eyebrow" style={{ marginTop: 14, marginBottom: 0, letterSpacing: 0 }}>Open <ArrowUpRight size={14} /></span></div>
+            <span className="surface-link-icon"><section.icon size={20} /></span>
           </Link>
         ))}
       </div>

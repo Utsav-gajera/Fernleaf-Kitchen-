@@ -112,6 +112,7 @@ export default function CompanyAdminPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [domainInput, setDomainInput] = useState('');
   const [priceTiers, setPriceTiers] = useState<Array<{ id: string; name: string }>>([]);
+  const [drivers, setDrivers] = useState<Array<{ id: string; name?: string | null; email: string }>>([]);
   const [companyEmployees, setCompanyEmployees] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [menuVisibility, setMenuVisibility] = useState<MenuVisibility | null>(null);
   const [isSavingVisibility, setIsSavingVisibility] = useState(false);
@@ -185,6 +186,12 @@ export default function CompanyAdminPage() {
     };
 
     loadPriceTiers();
+  }, []);
+
+  useEffect(() => {
+    apiRequest<Array<{ id: string; name?: string | null; email: string }>>('/dispatch-drivers')
+      .then(setDrivers)
+      .catch(() => setError('Could not load drivers. You can still save the company without a default driver.'));
   }, []);
 
   const selectCompany = (company: Company) => {
@@ -509,10 +516,10 @@ export default function CompanyAdminPage() {
             onClick={() => selectCompany(companyItem)}
             style={{
               textAlign: 'left',
-              border: selectedCompanyId === companyItem.id ? '1px solid rgba(96,165,250,0.8)' : '1px solid rgba(255,255,255,0.08)',
+              border: selectedCompanyId === companyItem.id ? '1px solid rgba(169,232,157,0.7)' : '1px solid var(--border-color)',
               borderRadius: '12px',
               padding: '1rem',
-              background: selectedCompanyId === companyItem.id ? 'rgba(59,130,246,0.12)' : 'transparent',
+              background: selectedCompanyId === companyItem.id ? 'rgba(169,232,157,0.1)' : 'transparent',
               color: 'inherit',
               cursor: 'pointer',
             }}
@@ -532,12 +539,12 @@ export default function CompanyAdminPage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Companies</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Manage company settings, domains, addresses, working patterns, and service defaults.</p>
+      <div className="page-heading">
+        <div><span className="page-eyebrow">People &amp; places</span><h1 className="page-title">Companies</h1>
+        <p className="page-subtitle">Choose a company to update its delivery details, working days and menu. To add one, fill in the form on the right.</p></div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '0.86fr 1.14fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 370px), 1fr))', gap: '1.5rem' }}>
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
           <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Company list</h2>
           {companyListContent}
@@ -617,8 +624,12 @@ export default function CompanyAdminPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: '0.35rem' }}>
-                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Default driver ID</label>
-                  <input value={form.defaultDriverId} onChange={(e) => setForm({ ...form, defaultDriverId: e.target.value })} style={fieldStyle} placeholder="driver-user-id" />
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Usual driver (optional)</label>
+                  <select value={form.defaultDriverId} onChange={(e) => setForm({ ...form, defaultDriverId: e.target.value })} style={fieldStyle}>
+                    <option value="">Choose a driver later</option>
+                    {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name || driver.email}</option>)}
+                    {form.defaultDriverId && !drivers.some((driver) => driver.id === form.defaultDriverId) && <option value={form.defaultDriverId}>Current driver</option>}
+                  </select>
                 </div>
               </div>
 

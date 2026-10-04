@@ -101,20 +101,18 @@ export default function MenuPreviewPage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Menu Preview</h1>
-        <p style={{ color: 'var(--text-muted)' }}>
-          Select a company and employee to see exactly what that employee would view in the menu.
-        </p>
+      <div className="page-heading">
+        <div><span className="page-eyebrow">Menu management</span><h1 className="page-title">Menu preview</h1>
+        <p className="page-subtitle">Choose a company and employee to check which dishes and prices they will see.</p></div>
       </div>
 
       {error && (
-        <div className="glass-panel" style={{ padding: '1rem 1.2rem', marginBottom: '1.2rem', borderColor: 'rgba(244,63,94,0.5)' }}>
+        <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>
           {error}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.5rem' }}>
         <div className="glass-panel" style={{ padding: '1.2rem' }}>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Company</label>
@@ -159,30 +157,21 @@ export default function MenuPreviewPage() {
             type="button"
             onClick={() => loadMenu()}
             disabled={!selectedCompanyId || !selectedEmployeeId || loading}
-            style={{
-              width: '100%',
-              marginTop: '1rem',
-              padding: '0.8rem 1rem',
-              borderRadius: '10px',
-              border: '1px solid rgba(147, 197, 253, 0.35)',
-              background: !selectedCompanyId || !selectedEmployeeId ? 'rgba(15,23,42,0.25)' : 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              color: '#fff',
-              fontWeight: 700,
-              cursor: !selectedCompanyId || !selectedEmployeeId ? 'not-allowed' : 'pointer',
-            }}
+            className="btn-primary"
+            style={{ width: '100%', marginTop: '1rem' }}
           >
-            Search Dishes
+            Show this employee&apos;s menu
           </button>
 
           {selectedEmployeeId && categories.some((category) => category.isSecret) && (
             <div style={{ marginTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Direct secret category</label>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Hidden category</label>
               <select
                 value={selectedSecretCategoryId}
                 onChange={(event) => setSelectedSecretCategoryId(event.target.value)}
                 style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', background: 'rgba(15,23,42,0.3)', color: 'white' }}
               >
-                <option value="">Choose a secret category</option>
+                <option value="">Choose a hidden category</option>
                 {categories.filter((category) => category.isSecret).map((category) => (
                   <option key={category.id} value={category.id}>{category.name}</option>
                 ))}
@@ -194,10 +183,10 @@ export default function MenuPreviewPage() {
                 disabled={!selectedSecretCategoryId}
                 style={{ width: '100%', marginTop: '0.65rem' }}
               >
-                Open direct category
+                Preview hidden category
               </button>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.55rem' }}>
-                Secret categories never appear in normal browsing; they require this explicit direct selection.
+                Hidden categories do not appear in the regular menu. Preview one here when needed.
               </div>
             </div>
           )}
@@ -207,13 +196,13 @@ export default function MenuPreviewPage() {
           {loading ? (
             <div style={{ color: 'var(--text-muted)' }}>Loading menu options...</div>
           ) : !menu ? (
-            <div style={{ color: 'var(--text-muted)' }}>Choose a company and employee to preview the employee menu.</div>
+            <div className="empty-state">Select a company and employee, then choose “Show this employee&apos;s menu.”</div>
           ) : (
             <>
               <div style={{ marginBottom: '1.25rem' }}>
                 <h2 style={{ fontSize: '1.3rem', marginBottom: '0.35rem' }}>{menu.companyName}</h2>
                 <div style={{ color: 'var(--text-muted)' }}>
-                  {menu.menu.totalDishes} visible dish{menu.menu.totalDishes === 1 ? '' : 'es'} · Tier: {menu.priceTierId ?? 'default'}
+                  {menu.menu.totalDishes} visible dish{menu.menu.totalDishes === 1 ? '' : 'es'}
                 </div>
               </div>
 

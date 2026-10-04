@@ -1,78 +1,67 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { ChefHat, ClipboardList, CreditCard, LayoutDashboard, Leaf, LogOut, Settings2, Truck, Users, Route } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Layers, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { hasCapability, NAV_ITEMS } from '../lib/access';
 
+const icons: Record<string, typeof ClipboardList> = {
+  '/dashboard/orders': ClipboardList,
+  '/dashboard/kitchen': ChefHat,
+  '/dashboard/dispatch': Truck,
+  '/dashboard/billing': CreditCard,
+  '/dashboard/settings': Settings2,
+  '/dashboard/staff': Users,
+  '/dashboard/driver': Route,
+};
+
+const roleNames: Record<string, string> = {
+  ADMIN: 'Admin',
+  KITCHEN: 'Kitchen',
+  DISPATCH: 'Dispatch',
+  DRIVER: 'Driver',
+};
+
 export default function Navbar() {
-  const { user, logout, isAdmin } = useAuth();
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <nav className="navbar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              background: 'var(--accent-gradient)',
-              padding: '6px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Layers size={20} color="#fff" />
+    <nav className="navbar" aria-label="Main navigation">
+      <Link href={user ? '/dashboard' : '/'} className="nav-brand" aria-label="FernLeaf Kitchen home">
+        <span className="nav-mark"><Leaf size={22} strokeWidth={2.5} /></span>
+        <span className="nav-wordmark">FernLeaf <span className="gradient-text">Kitchen</span></span>
+      </Link>
+
+      {user ? (
+        <>
+          <div className="nav-links">
+            <Link href="/dashboard" className={`nav-link ${pathname === '/dashboard' ? 'active' : ''}`} id="nav-dashboard-btn" aria-current={pathname === '/dashboard' ? 'page' : undefined}>
+              <LayoutDashboard size={16} /> Overview
+            </Link>
+            {NAV_ITEMS.filter((item) => hasCapability(user.role, item.capability)).map((item) => {
+              const Icon = icons[item.href];
+              return (
+                <Link key={item.href} href={item.href} className={`nav-link ${active(item.href) ? 'active' : ''}`} id={item.id} aria-current={active(item.href) ? 'page' : undefined}>
+                  <Icon size={16} /> {item.label}
+                </Link>
+              );
+            })}
           </div>
-          <span style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>
-            FernLeaf <span className="gradient-text">Kitchen</span>
-          </span>
-        </Link>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        <Link href="/" className="btn-secondary btn-sm" id="nav-home-btn">
-          Home
-        </Link>
-
-        {user ? (
-          <>
-            <Link href="/dashboard" className="btn-secondary btn-sm" id="nav-dashboard-btn">
-              Dashboard
-            </Link>
-            {NAV_ITEMS.filter((item) => hasCapability(user.role, item.capability)).map((item) => (
-              <Link key={item.href} href={item.href} className="btn-secondary btn-sm" id={item.id}>
-                {item.label}
-              </Link>
-            ))}
-
-            <div
-              className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
-            >
-              {isAdmin ? <ShieldCheck size={14} /> : <UserIcon size={14} />}
-              <span>{user.role}</span>
-            </div>
-
-            <button
-              onClick={logout}
-              className="btn-secondary btn-sm"
-              id="nav-logout-btn"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f43f5e' }}
-            >
-              <LogOut size={14} />
-              <span>Logout</span>
+          <div className="nav-actions">
+            <span className="badge badge-admin nav-role">{roleNames[user.role] ?? user.role}</span>
+            <button type="button" onClick={logout} className="nav-signout" id="nav-logout-btn" aria-label="Sign out">
+              <LogOut size={17} /><span>Sign out</span>
             </button>
-          </>
-        ) : (
-          <>
-            <Link href="/login" className="btn-secondary btn-sm" id="nav-login-btn">
-              Login
-            </Link>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      ) : (
+        <div className="nav-actions">
+          <Link href="/login" className="btn-primary btn-sm" id="nav-login-btn">Sign in</Link>
+        </div>
+      )}
     </nav>
   );
 }

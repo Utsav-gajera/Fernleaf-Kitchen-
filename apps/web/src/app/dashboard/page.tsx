@@ -1,341 +1,134 @@
 'use client';
 
-import React from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ArrowRight, BookOpen, Building2, ChefHat, ClipboardList, CreditCard, Menu, Settings2, SlidersHorizontal, Sparkles, Truck, Users, Route } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest } from '../../lib/api';
-import { ShieldCheck, User as UserIcon, LogOut, Lock, Sparkles } from 'lucide-react';
 
 type DashboardData = {
   date: string;
-  metrics: Record<string, number | string | null | { id: string; deliveryAt: string; deliveryTime: string; addressLine1: string; city: string; postalCode: string }>;
+  metrics: Record<string, number | string | null | { deliveryTime: string; addressLine1: string; city: string }>;
 };
 
-function MetricCards({ data, role }: { data: DashboardData; role: string }) {
-  const definitions: Record<string, Array<[string, string]>> = {
-    ADMIN: [
-      ['todaysOrders', "Today's orders"],
-      ['todaysConfirmedValueMinor', "Today's confirmed value"],
-      ['uninvoicedOrders', 'Uninvoiced orders'],
-      ['lateDeliveries', 'Late deliveries'],
-      ['ordersRequiringAttention', 'Orders requiring attention'],
-    ],
-    KITCHEN: [
-      ['pendingUnits', 'Pending units'],
-      ['inProgress', 'In progress'],
-      ['doneUnits', 'Done'],
-      ['atRiskUnits', 'At risk'],
-      ['lateUnits', 'Late'],
-    ],
-    DISPATCH: [
-      ['kitchenReady', 'Kitchen ready'],
-      ['waitingForDriver', 'Waiting for driver'],
-      ['dispatchReady', 'Dispatch ready'],
-      ['outForDelivery', 'Out for delivery'],
-      ['lateDrops', 'Late'],
-    ],
-    DRIVER: [
-      ['nextDrop', 'Next drop'],
-      ['remainingDrops', 'Remaining drops'],
-      ['completedDrops', 'Completed'],
-    ],
-  };
-  const cards = definitions[role] ?? [];
-  return (
-    <section style={{ marginBottom: '2rem' }}>
-      <h2 style={{ fontSize: '1.2rem', marginBottom: '0.8rem' }}>Today&apos;s operations</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.8rem' }}>
-        {cards.map(([key, label]) => {
-          const value = data.metrics[key];
-          let display: string | number = value as string | number;
-          if (key === 'todaysConfirmedValueMinor' && typeof value === 'number') {
-            display = `$${(value / 100).toFixed(2)}`;
-          } else if (key === 'nextDrop' && value && typeof value === 'object') {
-            display = `${value.deliveryTime} · ${value.addressLine1}, ${value.city}`;
-          } else if (value === null) {
-            display = 'None';
-          }
-          return <div className="glass-panel" key={key} style={{ padding: '1rem' }}><div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{label}</div><div style={{ fontWeight: 700, fontSize: key === 'nextDrop' ? '1rem' : '1.6rem', marginTop: '0.35rem' }}>{display}</div></div>;
-        })}
-      </div>
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.6rem' }}>Kitchen-local date: {data.date}</div>
-    </section>
-  );
+const metricDefinitions: Record<string, Array<{ key: string; label: string; href?: string }>> = {
+  ADMIN: [
+    { key: 'todaysOrders', label: 'Orders today', href: '/dashboard/orders' },
+    { key: 'ordersRequiringAttention', label: 'Need attention', href: '/dashboard/orders' },
+    { key: 'uninvoicedOrders', label: 'Ready to invoice', href: '/dashboard/billing' },
+    { key: 'lateDeliveries', label: 'Late deliveries', href: '/dashboard/dispatch' },
+  ],
+  KITCHEN: [
+    { key: 'pendingUnits', label: 'To prepare', href: '/dashboard/kitchen' },
+    { key: 'inProgress', label: 'In progress', href: '/dashboard/kitchen' },
+    { key: 'doneUnits', label: 'Completed', href: '/dashboard/kitchen' },
+    { key: 'atRiskUnits', label: 'Need attention', href: '/dashboard/kitchen' },
+  ],
+  DISPATCH: [
+    { key: 'waitingForDriver', label: 'Need a driver', href: '/dashboard/dispatch' },
+    { key: 'dispatchReady', label: 'Ready to send', href: '/dashboard/dispatch' },
+    { key: 'outForDelivery', label: 'On the road', href: '/dashboard/dispatch' },
+    { key: 'lateDrops', label: 'Running late', href: '/dashboard/dispatch' },
+  ],
+  DRIVER: [
+    { key: 'nextDrop', label: 'Your next stop', href: '/dashboard/driver' },
+    { key: 'remainingDrops', label: 'Stops remaining', href: '/dashboard/driver' },
+    { key: 'completedDrops', label: 'Completed today', href: '/dashboard/driver' },
+  ],
+};
+
+const roleIntro: Record<string, { title: string; description: string; href: string; action: string }> = {
+  ADMIN: { title: 'Keep the day moving.', description: 'Start with orders that need attention, then check kitchen, deliveries and billing.', href: '/dashboard/orders', action: 'Review orders' },
+  KITCHEN: { title: 'Your prep list is ready.', description: 'Start pending dishes, then mark each one complete as it leaves the kitchen.', href: '/dashboard/kitchen', action: 'Open kitchen board' },
+  DISPATCH: { title: 'Get deliveries on the road.', description: 'Assign a driver to each ready delivery before sending it out.', href: '/dashboard/dispatch', action: 'Open dispatch board' },
+  DRIVER: { title: 'See where you are going next.', description: 'Open your assigned stops, follow the delivery details and mark each stop complete.', href: '/dashboard/driver', action: 'See my stops' },
+};
+
+const adminLinks = [
+  { href: '/dashboard/companies', title: 'Companies', description: 'Delivery details and schedules', icon: Building2 },
+  { href: '/dashboard/employees', title: 'Employees', description: 'People and dietary needs', icon: Users },
+  { href: '/dashboard/catalogue', title: 'Menu catalogue', description: 'Dishes, add-ons and categories', icon: BookOpen },
+  { href: '/dashboard/pricing', title: 'Pricing', description: 'Price tiers and missing prices', icon: SlidersHorizontal },
+  { href: '/dashboard/menu', title: 'Menu preview', description: 'See what an employee can order', icon: Menu },
+  { href: '/dashboard/billing', title: 'Billing', description: 'Create and track invoices', icon: CreditCard },
+  { href: '/dashboard/staff', title: 'Staff accounts', description: 'Access and account status', icon: Users },
+  { href: '/dashboard/settings', title: 'Kitchen settings', description: 'Working days, holidays and cutoffs', icon: Settings2 },
+];
+
+const roleLinks: Record<string, typeof adminLinks> = {
+  KITCHEN: [{ href: '/dashboard/kitchen', title: 'Kitchen board', description: 'Start and complete dishes', icon: ChefHat }, { href: '/dashboard/orders', title: 'Orders', description: 'Check delivery details', icon: ClipboardList }],
+  DISPATCH: [{ href: '/dashboard/dispatch', title: 'Dispatch board', description: 'Assign drivers and send deliveries', icon: Truck }, { href: '/dashboard/orders', title: 'Orders', description: 'Check delivery details', icon: ClipboardList }],
+  DRIVER: [{ href: '/dashboard/driver', title: 'My stops', description: 'Your assigned deliveries', icon: Route }],
+};
+
+function metricValue(key: string, value: DashboardData['metrics'][string]) {
+  if (key === 'nextDrop' && value && typeof value === 'object') {
+    return `${value.deliveryTime} · ${value.addressLine1}, ${value.city}`;
+  }
+  return value === null || value === undefined ? '—' : String(value);
 }
 
 export default function DashboardPage() {
-  const { user, isLoading, logout, isAdmin } = useAuth();
-  const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
-  const [dashboardError, setDashboardError] = React.useState('');
+  const { user, isLoading } = useAuth();
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [error, setError] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!user) return;
-    apiRequest<DashboardData>('/dashboard')
-      .then(setDashboard)
-      .catch((error) => setDashboardError(error instanceof Error ? error.message : 'Unable to load dashboard.'));
+    apiRequest<DashboardData>('/dashboard').then(setDashboard).catch(() => setError('Today’s numbers are unavailable. You can still open your workspaces below.'));
   }, [user]);
 
-  if (isLoading) {
-    return (
-      <div className="container" style={{ textAlign: 'center', padding: '6rem 1rem' }}>
-        <div style={{ color: 'var(--text-muted)' }}>Loading session...</div>
-      </div>
-    );
-  }
+  if (isLoading) return <main className="container"><div className="empty-state">Getting your workspace ready…</div></main>;
+  if (!user) return <main className="container"><div className="glass-panel" style={{ maxWidth: 530, padding: '2rem', margin: '4rem auto', textAlign: 'center' }}><h1 style={{ marginBottom: 12 }}>Welcome to FernLeaf Kitchen</h1><p className="page-subtitle" style={{ marginBottom: 24 }}>Sign in to see your work for today.</p><Link href="/login" className="btn-primary">Sign in <ArrowRight size={16} /></Link></div></main>;
 
-  if (!user) {
-    return (
-      <div
-        className="container animate-fade-in"
-        style={{ textAlign: 'center', padding: '6rem 1rem' }}
-      >
-        <div
-          className="glass-panel"
-          style={{ maxWidth: '480px', margin: '0 auto', padding: '3rem 2rem' }}
-        >
-          <Lock size={40} color="var(--rose)" style={{ marginBottom: '1rem' }} />
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.8rem' }}>Authentication Required</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.95rem' }}>
-            Please log in to view this dashboard. Staff accounts are created by administrators.
-          </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-            <Link href="/login" className="btn-primary" id="dashboard-login-redirect-btn">
-              Go to Login
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const intro = roleIntro[user.role] ?? roleIntro.ADMIN;
+  const links = user.role === 'ADMIN' ? adminLinks : roleLinks[user.role] ?? [];
+  const metrics = metricDefinitions[user.role] ?? [];
 
   return (
-    <div className="container animate-fade-in" style={{ paddingBottom: '5rem' }}>
-      {/* User Profile Header Card */}
-      <div
-        className="glass-panel"
-        style={{
-          padding: '2rem',
-          marginBottom: '2rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1.5rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
-          <div
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
-              background: isAdmin
-                ? 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)'
-                : 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: 'var(--shadow-glow)',
-            }}
-          >
-            {isAdmin ? <ShieldCheck size={28} color="#fff" /> : <UserIcon size={28} color="#fff" />}
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ fontSize: '1.6rem', fontWeight: 700 }}>{user.name || 'User'}</h1>
-              <span className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}>{user.role}</span>
-            </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '2px' }}>
-              {user.email}
-            </div>
-          </div>
+    <main className="container animate-fade-in" style={{ paddingBottom: '5rem' }}>
+      <div className="page-heading">
+        <div>
+          <span className="page-eyebrow"><Sparkles size={14} /> Your workspace</span>
+          <h1 className="page-title">Good to see you, {user.name?.split(' ')[0] || 'there'}.</h1>
+          <p className="page-subtitle">Here is what is happening today and where to go next.</p>
         </div>
-
-        <button
-          onClick={logout}
-          className="btn-secondary"
-          id="dashboard-logout-btn"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e' }}
-        >
-          <LogOut size={16} />
-          <span>Log Out</span>
-        </button>
+        {dashboard?.date && <span className="badge badge-cloud">Delivery day: {dashboard.date}</span>}
       </div>
 
-      {/* Welcome Message */}
-      <div
-        className="glass-panel"
-        style={{
-          padding: '2.5rem',
-          marginBottom: '2rem',
-          borderLeft: isAdmin ? '4px solid #a855f7' : '4px solid var(--emerald)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem' }}>
-          <Sparkles size={22} color={isAdmin ? '#c084fc' : '#34d399'} />
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>
-            Welcome back, {user.name || user.email}!
-          </h2>
-        </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-          {isAdmin
-            ? 'You have administrative access to management and operational workspaces. Driver self-service remains scoped to the assigned driver.'
-            : "You're signed in with a standard account. Explore your personalized content below."}
-        </p>
-      </div>
+      <section className="glass-panel" style={{ padding: 'clamp(1.4rem, 3vw, 2.2rem)', marginBottom: '1.4rem', background: 'linear-gradient(115deg, rgba(51,99,67,.62), rgba(23,38,37,.92) 62%)', borderColor: 'rgba(169,232,157,.27)' }}>
+        <span className="page-eyebrow">Start here</span>
+        <h2 style={{ fontSize: 'clamp(1.45rem, 3vw, 2rem)', marginBottom: 10 }}>{intro.title}</h2>
+        <p className="page-subtitle" style={{ marginBottom: 22 }}>{intro.description}</p>
+        <Link href={intro.href} className="btn-primary">{intro.action} <ArrowRight size={17} /></Link>
+      </section>
 
-      {dashboardError && <p style={{ color: '#fb7185' }}>{dashboardError}</p>}
-      {dashboard && <MetricCards data={dashboard} role={user.role} />}
-
-      {isAdmin && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '1rem',
-            marginBottom: '2rem',
-          }}
-        >
-          <Link href="/dashboard/companies" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Companies</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Manage company records, domains, owners and delivery defaults.</div>
-          </Link>
-          <Link href="/dashboard/employees" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Employees</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Maintain employee assignments, allergies and permissions.</div>
-          </Link>
-          <Link href="/dashboard/catalogue" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Catalogue</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Manage dishes, reusable options, option groups, categories, and menu reference data.</div>
-          </Link>
-          <Link href="/dashboard/pricing" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Pricing</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Review tiers, derived pricing, and missing dish prices.</div>
-          </Link>
-          <Link href="/dashboard/menu" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Menu Preview</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Check the exact employee-facing menu for a company and employee.</div>
-          </Link>
-          <Link href="/dashboard/orders" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Orders</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Create, edit, place, cancel, and review employee order timelines.</div>
-          </Link>
-          <Link href="/dashboard/kitchen" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Kitchen</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Review prep units and kitchen readiness.</div>
-          </Link>
-          <Link href="/dashboard/staff" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
-            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Staff</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Create staff accounts, assign roles, and manage account activation.</div>
-          </Link>
-        </div>
+      {error && <div className="notice warning" style={{ marginBottom: 20 }} role="status">{error}</div>}
+      {dashboard && metrics.length > 0 && (
+        <section style={{ marginBottom: '2rem' }} aria-label="Today's activity">
+          <h2 style={{ fontSize: '1.18rem', marginBottom: 12 }}>Today at a glance</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+            {metrics.map((item) => (
+              <Link href={item.href ?? intro.href} className="glass-panel metric-card" key={item.key}>
+                <span className="help-note">{item.label}</span>
+                <div className="metric-value">{metricValue(item.key, dashboard.metrics[item.key])}</div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Role-Specific Info */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '1.5rem',
-        }}
-      >
-        <div className="glass-panel" style={{ padding: '1.8rem' }}>
-          <h3
-            style={{
-              fontSize: '1.1rem',
-              fontWeight: 600,
-              marginBottom: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            {isAdmin ? (
-              <ShieldCheck size={18} color="var(--accent-primary)" />
-            ) : (
-              <UserIcon size={18} color="var(--accent-primary)" />
-            )}
-            <span>Your Access Level</span>
-          </h3>
-          <ul
-            style={{
-              listStyle: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '0.9rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-            }}
-          >
-            <li>✓ Access your personal dashboard</li>
-            <li>✓ Secure session management</li>
-            {isAdmin && <li>✓ Full administrative privileges</li>}
-            <li>✓ Instant logout and session termination</li>
-          </ul>
+      <section>
+        <div className="page-heading" style={{ marginBottom: 12 }}><div><h2 style={{ fontSize: '1.2rem' }}>More places to work</h2><p className="help-note">Choose an area to manage or review.</p></div></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+          {links.map(({ href, title, description, icon: Icon }) => (
+            <Link href={href} className="glass-panel surface-link" key={href}>
+              <div><h3 style={{ fontSize: '1rem', marginBottom: 7 }}>{title}</h3><p className="help-note">{description}</p></div>
+              <span className="surface-link-icon"><Icon size={20} /></span>
+            </Link>
+          ))}
         </div>
-
-        <div className="glass-panel" style={{ padding: '1.8rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.8rem' }}>
-            Account Details
-          </h3>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-              fontSize: '0.9rem',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <div>
-              <span
-                style={{
-                  color: 'var(--text-dim)',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                Name
-              </span>
-              <div style={{ marginTop: '2px', color: 'var(--text-primary)' }}>
-                {user.name || '—'}
-              </div>
-            </div>
-            <div>
-              <span
-                style={{
-                  color: 'var(--text-dim)',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                Email
-              </span>
-              <div style={{ marginTop: '2px', color: 'var(--text-primary)' }}>{user.email}</div>
-            </div>
-            <div>
-              <span
-                style={{
-                  color: 'var(--text-dim)',
-                  fontSize: '0.8rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                Role
-              </span>
-              <div style={{ marginTop: '4px' }}>
-                <span className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}>
-                  {user.role}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

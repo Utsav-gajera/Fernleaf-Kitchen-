@@ -26,7 +26,7 @@ export const NAV_ITEMS: ReadonlyArray<{ href: string; label: string; capability:
   { href: '/dashboard/billing', label: 'Billing', capability: 'BILLING_MANAGE', id: 'nav-billing-btn' },
   { href: '/dashboard/settings', label: 'Settings', capability: 'SETTINGS_MANAGE', id: 'nav-settings-btn' },
   { href: '/dashboard/staff', label: 'Staff', capability: 'STAFF_MANAGE', id: 'nav-staff-btn' },
-  { href: '/dashboard/driver', label: 'My drops', capability: 'DRIVER_VIEW_OWN', id: 'nav-driver-btn' },
+  { href: '/dashboard/driver', label: 'My deliveries', capability: 'DRIVER_VIEW_OWN', id: 'nav-driver-btn' },
 ];
 
 export function hasCapability(role: Role, capability: Capability): boolean {

@@ -66,19 +66,19 @@ export default function ReferenceDataCataloguePage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.35rem' }}>Reference Data</h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Manage allergens, dietary tags and kitchen stations.</p>
+          <span className="page-eyebrow">Menu catalogue</span><h1 className="page-title">Dietary &amp; kitchen details</h1>
+          <p className="page-subtitle">Set up the labels and prep stations you can use when creating dishes and add-ons.</p>
         </div>
         <Link href="/dashboard/catalogue" className="btn-secondary btn-sm">Back to catalogue</Link>
       </div>
 
-      {error ? <div className="glass-panel" style={{ padding: '0.9rem 1rem', marginBottom: '1.2rem', color: '#fda4af' }}>{error}</div> : null}
+      {error ? <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Allergens</h2>
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Allergens</h2><p className="help-note" style={{ marginBottom: '0.8rem' }}>Help people avoid ingredients they cannot eat.</p>
           <form onSubmit={(e) => saveItem('allergen', e)} style={{ display: 'grid', gap: '0.7rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
               <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Allergen name</label>
@@ -96,7 +96,7 @@ export default function ReferenceDataCataloguePage() {
         </div>
 
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Dietary tags</h2>
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Dietary labels</h2><p className="help-note" style={{ marginBottom: '0.8rem' }}>Show which dishes fit a dietary preference.</p>
           <form onSubmit={(e) => saveItem('dietary', e)} style={{ display: 'grid', gap: '0.7rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
               <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Dietary tag name</label>
@@ -114,7 +114,7 @@ export default function ReferenceDataCataloguePage() {
         </div>
 
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.8rem' }}>Kitchen stations</h2>
+          <h2 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Kitchen stations</h2><p className="help-note" style={{ marginBottom: '0.8rem' }}>Route dishes to the right preparation area.</p>
           <form onSubmit={(e) => saveItem('station', e)} style={{ display: 'grid', gap: '0.7rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
               <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Kitchen station name</label>

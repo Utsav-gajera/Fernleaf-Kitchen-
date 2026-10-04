@@ -5,6 +5,7 @@ import { Truck, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import { hasCapability } from '../../../lib/access';
+import { statusLabel } from '../../../lib/presentation';
 
 type Driver = { id: string; name?: string | null; email: string };
 type Drop = {
@@ -68,19 +69,17 @@ export default function DispatchPage() {
       });
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to update drop.');
+      setMessage(error instanceof Error ? error.message : 'Could not update this delivery.');
     }
   };
 
   return (
     <main className="container" style={{ paddingBottom: '5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Truck size={30} color="var(--accent-primary)" />
-            <h1 style={{ margin: 0 }}>Dispatch board</h1>
-          </div>
-          <p className="text-muted">Drops group same-company orders at the same address and exact delivery time.</p>
+          <span className="page-eyebrow"><Truck size={15} /> Delivery operations</span>
+          <h1 className="page-title">Dispatch board</h1>
+          <p className="page-subtitle">Each delivery card brings together orders going to the same place at the same time.</p>
         </div>
         <button className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
       </div>
@@ -88,7 +87,7 @@ export default function DispatchPage() {
         <label className="form-label">Delivery date<input className="form-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
         {message && <p style={{ color: '#fb7185', margin: 0 }}>{message}</p>}
       </section>
-      {loading ? <p className="text-muted">Loading drops...</p> : !drops.length ? <p className="text-muted">No kitchen-ready drops for this date.</p> : (
+      {loading ? <div className="empty-state">Loading deliveries…</div> : !drops.length ? <div className="empty-state">No deliveries are ready for this date. Try another date or check the kitchen board.</div> : (
         <div style={{ display: 'grid', gap: '1rem' }}>
           {drops.map((drop) => (
             <article className="glass-panel" key={drop.id} style={{ padding: '1.2rem' }}>
@@ -97,15 +96,17 @@ export default function DispatchPage() {
                   <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{drop.company.name} · {drop.deliveryTime}</h2>
                   <p className="text-muted" style={{ margin: '0.4rem 0' }}>{drop.addressLine1}{drop.addressLine2 ? `, ${drop.addressLine2}` : ''}, {drop.city}, {drop.postalCode}</p>
                 </div>
-                <span className="badge">{drop.status.replaceAll('_', ' ')}</span>
+                <span className="badge badge-cloud">{statusLabel(drop.status)}</span>
               </div>
               <div className="text-muted" style={{ margin: '0.6rem 0' }}>
-                {drop.orders.length} order(s) · {money(drop.orders.reduce((total, item) => total + item.order.totalMinor, 0))}
-                {drop.driver ? ` · Driver: ${drop.driver.name || drop.driver.email}` : ' · No driver assigned'}
+                {drop.orders.length} {drop.orders.length === 1 ? 'order' : 'orders'} · {money(drop.orders.reduce((total, item) => total + item.order.totalMinor, 0))}
+                {drop.driver ? ` · Driver: ${drop.driver.name || drop.driver.email}` : ' · Driver needed'}
               </div>
               <div style={{ display: 'grid', gap: 4, marginBottom: '0.8rem' }}>
-                {drop.orders.map(({ order }) => <span className="text-muted" key={order.id}>{order.employee.name} · {order.id.slice(0, 8)}</span>)}
+                {drop.orders.map(({ order }) => <span className="text-muted" key={order.id}>{order.employee.name}</span>)}
               </div>
+              {drop.status === 'KITCHEN_READY' && <p className="help-note" style={{ marginBottom: 10 }}>Next: choose a driver, then mark this delivery ready to send.</p>}
+              {drop.status === 'DISPATCH_READY' && <p className="help-note" style={{ marginBottom: 10 }}>{drop.driver ? 'Ready to leave. Send this delivery out when the driver departs.' : 'Choose a driver before this delivery can leave.'}</p>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {drop.status === 'KITCHEN_READY' && (
                   <>
@@ -113,7 +114,7 @@ export default function DispatchPage() {
                       <option value="">Assign driver</option>
                       {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name || driver.email}</option>)}
                     </select>
-                    <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'dispatch-ready')}>Mark dispatch-ready</button>
+                    <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'dispatch-ready')}>Ready to dispatch</button>
                   </>
                 )}
                 {drop.status === 'DISPATCH_READY' && (
@@ -125,7 +126,7 @@ export default function DispatchPage() {
                     <button className="btn-primary btn-sm" disabled={!drop.driver} title={drop.driver ? undefined : 'Assign a driver before sending this drop out for delivery.'} onClick={() => void command(drop.id, 'out-for-delivery')}>Out for delivery</button>
                   </>
                 )}
-                {drop.status === 'OUT_FOR_DELIVERY' && canOverrideOrders && <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'delivered')}>Admin override: delivered</button>}
+                {drop.status === 'OUT_FOR_DELIVERY' && canOverrideOrders && <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'delivered')}>Mark delivered for driver</button>}
               </div>
             </article>
           ))}

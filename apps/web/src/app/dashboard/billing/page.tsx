@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, FileText, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
+import { statusLabel } from '../../../lib/presentation';
 import { useAuth } from '../../../context/AuthContext';
 
 type Company = { id: string; name: string };
@@ -106,10 +107,10 @@ export default function BillingPage() {
 
   return (
     <main className="container" style={{ paddingBottom: '5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+      <div className="page-heading">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><FileText size={28} color="var(--accent-primary)" /><h1 style={{ margin: 0 }}>Billing</h1></div>
-          <p className="text-muted" style={{ marginBottom: 0 }}>Create company invoices from confirmed billable orders.</p>
+          <span className="page-eyebrow"><FileText size={15} /> Finances</span><h1 className="page-title">Billing</h1>
+          <p className="page-subtitle">Choose a company, select its ready orders, then create an invoice. Mark it paid when payment arrives.</p>
         </div>
         <button className="btn-secondary btn-sm" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
       </div>
@@ -123,9 +124,9 @@ export default function BillingPage() {
           </select>
         </label>
         {companyId && <div style={{ display: 'grid', gap: 8, marginTop: 14 }}>
-          {!orders.length ? <p className="text-muted">No uninvoiced billable orders for this company.</p> : orders.map((order) => (
+          {!orders.length ? <div className="empty-state">No orders are ready to invoice for this company.</div> : orders.map((order) => (
             <label key={order.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0.75rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
-              <span><input type="checkbox" checked={selected.includes(order.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, order.id] : current.filter((id) => id !== order.id))} /> <strong>{order.id.slice(0, 8)}</strong> · {order.status} · {new Date(order.deliveryDate).toLocaleDateString()} {order.deliveryTime}</span>
+              <span><input type="checkbox" checked={selected.includes(order.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, order.id] : current.filter((id) => id !== order.id))} /> <strong>Order {order.id.slice(0, 8)}</strong> · {statusLabel(order.status)} · {new Date(order.deliveryDate).toLocaleDateString()} {order.deliveryTime}</span>
               <strong>{money(order.totalMinor)}</strong>
             </label>
           ))}
@@ -136,15 +137,15 @@ export default function BillingPage() {
         </div>}
       </section>
 
-      {message && <p style={{ color: '#fb7185' }}>{message}</p>}
+      {message && <div className="notice" role="status" style={{ marginBottom: 16 }}>{message}</div>}
       <section>
         <h2 style={{ fontSize: '1.2rem' }}>Invoices</h2>
-        {!invoices.length ? <p className="text-muted">No invoices created yet.</p> : <div style={{ display: 'grid', gap: 12 }}>
+        {!invoices.length ? <div className="empty-state" style={{ marginTop: 12 }}>No invoices yet. Select a company and its ready orders above to create one.</div> : <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
           {invoices.map((invoice) => (
             <article className="glass-panel" key={invoice.id} style={{ padding: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div><strong>{invoice.company.name}</strong><div className="text-muted">{invoice.id.slice(0, 8)} · {new Date(invoice.createdAt).toLocaleDateString()} · {invoice.orders.length} order(s)</div><div style={{ display: 'grid', gap: 4, marginTop: 6 }}>{invoice.orders.map(({ order }) => <span className="text-muted" key={order.id}>{order.id.slice(0, 8)} · {money(order.totalMinor)} {invoice.status === 'UNPAID' && <button className="btn-secondary btn-sm" onClick={() => void removeOrder(invoice.id, order.id)}>Remove</button>}</span>)}</div></div>
-                <span className="badge">{invoice.status}</span>
+                <span className="badge badge-cloud">{invoice.status === 'PAID' ? 'Paid' : 'Awaiting payment'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}><strong>{money(invoice.totalMinor)}</strong>{invoice.status === 'UNPAID' && <button className="btn-primary btn-sm" onClick={() => void markPaid(invoice.id)}><Check size={15} /> Mark paid</button>}</div>
             </article>

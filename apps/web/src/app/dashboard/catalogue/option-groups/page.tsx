@@ -38,6 +38,7 @@ export default function OptionGroupsCataloguePage() {
   const [referenceData, setReferenceData] = useState<ReferenceData>({ options: [] });
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -62,6 +63,7 @@ export default function OptionGroupsCataloguePage() {
   const saveItem = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setMessage('');
 
     try {
       const payload = {
@@ -83,6 +85,7 @@ export default function OptionGroupsCataloguePage() {
 
       setForm(emptyForm);
       await loadData();
+      setMessage(form.id ? 'Group updated.' : 'Group created. You can now add it to a dish.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save option group');
     }
@@ -92,40 +95,41 @@ export default function OptionGroupsCataloguePage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.35rem' }}>Option Groups</h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Group related options and set selection rules.</p>
+          <span className="page-eyebrow">Menu catalogue</span><h1 className="page-title">Add-on groups</h1>
+          <p className="page-subtitle">Put related add-ons together so employees can choose one when ordering a dish.</p>
         </div>
         <Link href="/dashboard/catalogue" className="btn-secondary btn-sm">Back to catalogue</Link>
       </div>
 
-      {error ? <div className="glass-panel" style={{ padding: '0.9rem 1rem', marginBottom: '1.2rem', color: '#fda4af' }}>{error}</div> : null}
+      {error ? <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
+      {message ? <div className="notice" role="status" style={{ marginBottom: '1.2rem' }}>{message}</div> : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.9fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
           <form onSubmit={saveItem} style={{ display: 'grid', gap: '0.9rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Option group name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fieldStyle} placeholder="Enter option group name" required />
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Group name</label>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fieldStyle} placeholder="For example, Choose a side" required />
             </div>
 
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input type="checkbox" checked={form.isRequired} onChange={(e) => setForm({ ...form, isRequired: e.target.checked })} />
-                <span>Required</span>
+                <span>Employee must choose from this group</span>
               </label>
             </div>
 
             <div style={{ display: 'grid', gap: '0.5rem' }}>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Assigned options</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Add-ons in this group</div>
               <div style={{ display: 'grid', gap: '0.5rem' }}>
                 {referenceData.options.map((item) => (
                   <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 90px', gap: '0.5rem', alignItems: 'center' }}>
                     <input type="checkbox" checked={form.optionIds.includes(item.id)} onChange={() => setForm({ ...form, optionIds: toggleItemList(form.optionIds, item.id) })} />
                     <span>{item.name}</span>
                     <div style={{ display: 'grid', gap: '0.15rem' }}>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Order</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Position</span>
                       <input type="number" min={0} value={form.optionOrderMap[item.id] ?? '0'} onChange={(e) => setForm({ ...form, optionOrderMap: { ...form.optionOrderMap, [item.id]: e.target.value } })} style={{ ...fieldStyle, padding: '0.5rem 0.5rem' }} />
                     </div>
                   </div>
@@ -134,8 +138,8 @@ export default function OptionGroupsCataloguePage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn-primary">{form.id ? 'Update Group' : 'Create Group'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Reset</button>
+              <button type="submit" className="btn-primary">{form.id ? 'Save changes' : 'Create group'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Clear form</button>
             </div>
           </form>
         </div>

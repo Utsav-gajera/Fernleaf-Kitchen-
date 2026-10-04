@@ -94,13 +94,11 @@ export default function KitchenPage() {
 
   return (
     <main className="container kitchen-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ChefHat size={30} color="var(--accent-primary)" />
-            <h1 style={{ margin: 0, fontSize: 'clamp(1.8rem, 3vw, 2.5rem)' }}>Kitchen board</h1>
-          </div>
-          <p className="text-muted" style={{ marginTop: 8 }}>Work confirmed order combinations by kitchen station.</p>
+          <span className="page-eyebrow"><ChefHat size={15} /> Food preparation</span>
+          <h1 className="page-title">Kitchen board</h1>
+          <p className="page-subtitle">Start dishes in “To prepare” and move them to “Completed” when they are ready.</p>
         </div>
         <button className="btn-secondary" onClick={() => void loadBoard()} disabled={loading} style={{ minHeight: 42 }}>
           <RefreshCw size={15} /> Refresh
@@ -122,12 +120,12 @@ export default function KitchenPage() {
         {message && <p style={{ color: '#fb7185', margin: 0 }}>{message}</p>}
       </section>
 
-      {loading ? <p className="text-muted">Loading kitchen units...</p> : (
+      {loading ? <div className="empty-state">Loading kitchen work…</div> : (
         <div className="kitchen-columns">
           {columns.map((column) => (
             <section className={`kitchen-column ${column.toLowerCase()}`} key={column}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{column}</h2>
+                <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{column === 'PENDING' ? 'To prepare' : column === 'STARTED' ? 'In progress' : 'Completed'}</h2>
                 <span className="badge">{units.filter((unit) => unit.status === column).length}</span>
               </div>
               <div style={{ display: 'grid', gap: 12 }}>
@@ -142,10 +140,10 @@ export default function KitchenPage() {
                       )}
                     </div>
                     <div className="text-muted" style={{ fontSize: '0.85rem', marginTop: 5 }}>
-                      {unit.stationNameSnapshot || 'Unassigned'} · Qty {unit.quantity} · {unit.skuSnapshot}
+                      {unit.stationNameSnapshot || 'No station assigned'} · {unit.quantity} {unit.quantity === 1 ? 'serving' : 'servings'}
                     </div>
                     <div className="text-muted" style={{ fontSize: '0.85rem', marginTop: 5 }}>
-                      Order {unit.orderId.slice(0, 8)} · Ready by {formatTime(unit.plannedKitchenReadyAt)} · Dispatch by {formatTime(unit.plannedDispatchAt)}
+                      Ready by {formatTime(unit.plannedKitchenReadyAt)} · Leaves kitchen by {formatTime(unit.plannedDispatchAt)}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       {unit.status === 'PENDING' && (
@@ -164,8 +162,8 @@ export default function KitchenPage() {
                 {units.every((unit) => unit.status !== column) && (
                   <p className="text-muted">
                     {column === 'PENDING' && units.length === 0
-                      ? 'No confirmed kitchen units for this delivery date.'
-                      : 'No units.'}
+                      ? 'No dishes to prepare for this date.'
+                      : column === 'DONE' ? 'Completed dishes will appear here.' : 'Nothing here yet.'}
                   </p>
                 )}
               </div>

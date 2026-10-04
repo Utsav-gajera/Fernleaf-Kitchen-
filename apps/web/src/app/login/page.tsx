@@ -22,8 +22,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in. Please check your credentials.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -61,13 +61,13 @@ export default function LoginPage() {
               boxShadow: 'var(--shadow-glow)',
             }}
           >
-            <LogIn size={24} color="#fff" />
+            <LogIn size={24} color="#10231b" />
           </div>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.4rem' }}>
-            Welcome Back
-          </h2>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+            Welcome back
+          </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Sign in to your account to continue
+            Sign in to see your work for today.
           </p>
         </div>
 
@@ -133,6 +133,8 @@ export default function LoginPage() {
             {!loading && <ArrowRight size={18} />}
           </button>
         </form>
+
+        <p className="help-note" style={{ marginTop: '1.4rem', textAlign: 'center' }}>Need an account or can&apos;t sign in? Ask your administrator for help.</p>
 
       </div>
     </div>

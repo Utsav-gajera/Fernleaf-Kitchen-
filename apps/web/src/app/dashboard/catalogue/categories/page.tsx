@@ -34,6 +34,7 @@ export default function CategoriesCataloguePage() {
   const [items, setItems] = useState<Category[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -49,6 +50,7 @@ export default function CategoriesCataloguePage() {
   const saveItem = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setMessage('');
 
     try {
       const payload = {
@@ -68,6 +70,7 @@ export default function CategoriesCataloguePage() {
 
       setForm(emptyForm);
       await loadData();
+      setMessage(form.id ? 'Category updated.' : 'Category created. You can now assign dishes to it.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save category');
     }
@@ -76,6 +79,7 @@ export default function CategoriesCataloguePage() {
   const toggleActive = async (categoryId: string) => {
     try {
       setError('');
+      setMessage('');
       await apiRequest(`/catalogue/categories/${categoryId}/toggle-active`, { method: 'PATCH' });
       await loadData();
     } catch (err) {
@@ -85,17 +89,18 @@ export default function CategoriesCataloguePage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.35rem' }}>Categories</h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Organize menu sections and display order.</p>
+          <span className="page-eyebrow">Menu catalogue</span><h1 className="page-title">Categories</h1>
+          <p className="page-subtitle">Create sections to help employees find dishes on the menu.</p>
         </div>
         <Link href="/dashboard/catalogue" className="btn-secondary btn-sm">Back to catalogue</Link>
       </div>
 
-      {error ? <div className="glass-panel" style={{ padding: '0.9rem 1rem', marginBottom: '1.2rem', color: '#fda4af' }}>{error}</div> : null}
+      {error ? <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
+      {message ? <div className="notice" role="status" style={{ marginBottom: '1.2rem' }}>{message}</div> : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.9fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
           <form onSubmit={saveItem} style={{ display: 'grid', gap: '0.9rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
@@ -104,21 +109,21 @@ export default function CategoriesCataloguePage() {
             </div>
 
             <div style={{ display: 'grid', gap: '0.3rem' }}>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Display order</label>
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Menu position (lower numbers appear first)</label>
               <input type="number" value={form.displayOrder} onChange={(e) => setForm({ ...form, displayOrder: e.target.value })} style={fieldStyle} placeholder="0" />
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-              <span>Active</span>
+              <span>Show on the menu</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <input type="checkbox" checked={form.isSecret} onChange={(e) => setForm({ ...form, isSecret: e.target.checked })} />
-              <span>Secret category</span>
+              <span>Hidden unless opened directly</span>
             </label>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn-primary">{form.id ? 'Update Category' : 'Create Category'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Reset</button>
+              <button type="submit" className="btn-primary">{form.id ? 'Save changes' : 'Create category'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Clear form</button>
             </div>
           </form>
         </div>

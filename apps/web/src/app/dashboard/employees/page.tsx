@@ -165,10 +165,10 @@ export default function EmployeeAdminPage() {
             onClick={() => selectEmployee(employee)}
             style={{
               textAlign: 'left',
-              border: form.id === employee.id ? '1px solid rgba(96,165,250,0.8)' : '1px solid rgba(255,255,255,0.08)',
+              border: form.id === employee.id ? '1px solid rgba(169,232,157,0.7)' : '1px solid var(--border-color)',
               borderRadius: '12px',
               padding: '1rem',
-              background: form.id === employee.id ? 'rgba(59,130,246,0.12)' : 'transparent',
+              background: form.id === employee.id ? 'rgba(169,232,157,0.1)' : 'transparent',
               color: 'inherit',
               cursor: 'pointer',
             }}
@@ -189,12 +189,12 @@ export default function EmployeeAdminPage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Employees</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Manage employee profiles, dietary notes, and delivery permissions.</p>
+      <div className="page-heading">
+        <div><span className="page-eyebrow">People &amp; places</span><h1 className="page-title">Employees</h1>
+        <p className="page-subtitle">Choose a person to update their company, dietary needs and delivery choices. New employees can be added with the form.</p></div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '0.86fr 1.14fr', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 370px), 1fr))', gap: '1.5rem' }}>
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
           <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Employee list</h2>
           {employeeListContent}

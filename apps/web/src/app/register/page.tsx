@@ -28,19 +28,18 @@ export default function RegisterPage() {
           color="var(--accent-primary)"
           style={{ marginBottom: '1rem' }}
         />
-        <h2 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.6rem' }}>
-          Staff accounts are managed by administrators
-        </h2>
+        <h1 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.6rem' }}>
+          Need a FernLeaf account?
+        </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-          Public registration is disabled. Contact your administrator to receive an account
-          and the correct role for your work.
+          Ask your administrator to create one for you. Once you have your sign-in details, you can open your workspace here.
         </p>
         <Link
           href="/login"
           className="btn-primary"
           style={{ display: 'inline-flex', marginTop: '1.5rem' }}
         >
-          Go to Login
+          Go to sign in
         </Link>
       </div>
     </div>

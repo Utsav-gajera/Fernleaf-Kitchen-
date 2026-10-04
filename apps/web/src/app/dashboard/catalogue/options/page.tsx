@@ -33,7 +33,7 @@ const emptyForm = {
   id: '',
   name: '',
   description: '',
-  costPriceMinor: '0',
+  costPriceMinor: '0.00',
   isActive: true,
   allergenIds: [] as string[],
   dietaryTagIds: [] as string[],
@@ -44,6 +44,7 @@ export default function OptionsCataloguePage() {
   const [referenceData, setReferenceData] = useState<ReferenceData>({ allergens: [], dietaryTags: [] });
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -68,12 +69,15 @@ export default function OptionsCataloguePage() {
   const saveItem = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setMessage('');
 
     try {
+      const cost = Number(form.costPriceMinor);
+      if (!Number.isFinite(cost) || cost < 0) throw new Error('Enter a valid cost in dollars.');
       const payload = {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
-        costPriceMinor: Number(form.costPriceMinor) || 0,
+        costPriceMinor: Math.round(cost * 100),
         isActive: form.isActive,
         allergenIds: form.allergenIds,
         dietaryTagIds: form.dietaryTagIds,
@@ -89,6 +93,7 @@ export default function OptionsCataloguePage() {
 
       setForm(emptyForm);
       await loadData();
+      setMessage(form.id ? 'Add-on updated.' : 'Add-on created. Add another or choose one to edit.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save option');
     }
@@ -108,22 +113,23 @@ export default function OptionsCataloguePage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.35rem' }}>Options</h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Manage reusable add-ons.</p>
+          <span className="page-eyebrow">Menu catalogue</span><h1 className="page-title">Add-ons</h1>
+          <p className="page-subtitle">Create extras such as sides and drinks, then add them to groups for dishes.</p>
         </div>
         <Link href="/dashboard/catalogue" className="btn-secondary btn-sm">Back to catalogue</Link>
       </div>
 
-      {error ? <div className="glass-panel" style={{ padding: '0.9rem 1rem', marginBottom: '1.2rem', color: '#fda4af' }}>{error}</div> : null}
+      {error ? <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
+      {message ? <div className="notice" role="status" style={{ marginBottom: '1.2rem' }}>{message}</div> : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 0.9fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
           <form onSubmit={saveItem} style={{ display: 'grid', gap: '0.9rem' }}>
             <div style={{ display: 'grid', gap: '0.3rem' }}>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Option name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fieldStyle} placeholder="Enter option name" required />
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Add-on name</label>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fieldStyle} placeholder="For example, Side salad" required />
             </div>
 
             <div style={{ display: 'grid', gap: '0.3rem' }}>
@@ -132,13 +138,13 @@ export default function OptionsCataloguePage() {
             </div>
 
             <div style={{ display: 'grid', gap: '0.3rem' }}>
-              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost price (minor)</label>
-              <input type="number" value={form.costPriceMinor} onChange={(e) => setForm({ ...form, costPriceMinor: e.target.value })} style={fieldStyle} placeholder="0" />
+              <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost to make ($)</label>
+              <input type="number" min="0" step="0.01" value={form.costPriceMinor} onChange={(e) => setForm({ ...form, costPriceMinor: e.target.value })} style={fieldStyle} placeholder="0.00" />
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-              <span>Active</span>
+              <span>Available as an add-on</span>
             </label>
 
             <div style={{ display: 'grid', gap: '0.4rem' }}>
@@ -166,8 +172,8 @@ export default function OptionsCataloguePage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn-primary">{form.id ? 'Update Option' : 'Create Option'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Reset</button>
+              <button type="submit" className="btn-primary">{form.id ? 'Save changes' : 'Create add-on'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setForm(emptyForm)}>Clear form</button>
             </div>
           </form>
         </div>
@@ -178,12 +184,12 @@ export default function OptionsCataloguePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{item.name}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost: {item.costPriceMinor ?? 0}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost to make: ${((item.costPriceMinor ?? 0) / 100).toFixed(2)}</div>
                 </div>
                 <span className={`badge ${item.isActive ? 'badge-admin' : 'badge-user'}`}>{item.isActive ? 'Active' : 'Inactive'}</span>
               </div>
               <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.7rem' }}>
-                <button type="button" className="btn-secondary btn-sm" onClick={() => setForm({ id: item.id, name: item.name, description: item.description ?? '', costPriceMinor: String(item.costPriceMinor ?? 0), isActive: item.isActive, allergenIds: item.allergies?.map((entry) => entry.allergen.id) ?? [], dietaryTagIds: item.dietaryTags?.map((entry) => entry.dietaryTag.id) ?? [] })}>Edit</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setForm({ id: item.id, name: item.name, description: item.description ?? '', costPriceMinor: ((item.costPriceMinor ?? 0) / 100).toFixed(2), isActive: item.isActive, allergenIds: item.allergies?.map((entry) => entry.allergen.id) ?? [], dietaryTagIds: item.dietaryTags?.map((entry) => entry.dietaryTag.id) ?? [] })}>Edit</button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => toggleActive(item.id)}>{item.isActive ? 'Deactivate' : 'Reactivate'}</button>
               </div>
             </div>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { CheckCircle2, MapPin, RefreshCw, Truck } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
+import { statusLabel } from '../../../lib/presentation';
 import { useAuth } from '../../../context/AuthContext';
 
 type Drop = {
@@ -38,7 +39,7 @@ export default function DriverPage() {
     try {
       setDrops(await apiRequest<Drop[]>('/driver/drops/today'));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to load your drops.');
+      setMessage(error instanceof Error ? error.message : 'Could not load your deliveries.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +69,7 @@ export default function DriverPage() {
       setDeliveryPhotoUrl('');
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to mark this drop delivered.');
+      setMessage(error instanceof Error ? error.message : 'Could not mark this delivery complete.');
     } finally {
       setWorkingId('');
     }
@@ -98,18 +99,15 @@ export default function DriverPage() {
 
   return (
     <main className="container" style={{ maxWidth: 680, paddingBottom: '5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '1rem', marginBottom: '1.25rem' }}>
+      <div className="page-heading">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Truck size={28} color="var(--accent-primary)" />
-            <h1 style={{ margin: 0 }}>My deliveries</h1>
-          </div>
-          <p className="text-muted" style={{ marginBottom: 0 }}>Today · {drops.length} assigned drop(s)</p>
+          <span className="page-eyebrow"><Truck size={15} /> On the road</span><h1 className="page-title">My deliveries</h1>
+          <p className="page-subtitle">Follow your stops in order. When a delivery is complete, add a note or photo if needed and confirm it.</p>
         </div>
         <button className="btn-secondary btn-sm" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
       </div>
 
-      {message && <p style={{ color: '#fb7185' }}>{message}</p>}
+      {message && <div className="notice" role="status" style={{ marginBottom: 16 }}>{message}</div>}
       <section className="glass-panel" style={{ padding: '1rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <strong>Next delivery</strong>
@@ -121,10 +119,10 @@ export default function DriverPage() {
             <p style={{ margin: '0.5rem 0' }}><MapPin size={15} style={{ verticalAlign: 'middle' }} /> {next.addressLine1}{next.addressLine2 ? `, ${next.addressLine2}` : ''}, {next.city}, {next.postalCode}</p>
             {instructions(next) && <p className="text-muted" style={{ margin: 0 }}>Instructions: {instructions(next)}</p>}
           </div>
-        ) : <p className="text-muted" style={{ marginBottom: 0 }}>No remaining deliveries.</p>}
+        ) : <p className="help-note" style={{ marginTop: 12 }}>No stops left today. You are all caught up.</p>}
       </section>
 
-      {loading ? <p className="text-muted">Loading your drops...</p> : (
+      {loading ? <div className="empty-state">Loading your deliveries…</div> : (
         <div style={{ display: 'grid', gap: 12 }}>
           {drops.map((drop) => (
             <article className="glass-panel" key={drop.id} style={{ padding: '1rem' }}>
@@ -133,7 +131,7 @@ export default function DriverPage() {
                   <strong>{drop.deliveryTime} · {drop.company.name}</strong>
                   <p style={{ margin: '0.35rem 0' }}>{drop.addressLine1}{drop.addressLine2 ? `, ${drop.addressLine2}` : ''}, {drop.city}, {drop.postalCode}</p>
                 </div>
-                <span className="badge">{drop.status.replaceAll('_', ' ')}</span>
+                <span className="badge badge-cloud">{statusLabel(drop.status)}</span>
               </div>
               {instructions(drop) && <p className="text-muted" style={{ margin: '0.4rem 0' }}>{instructions(drop)}</p>}
               {drop.status === 'OUT_FOR_DELIVERY' && (
@@ -159,14 +157,14 @@ export default function DriverPage() {
                   </div>
                 ) : (
                   <button className="btn-primary" style={{ width: '100%', marginTop: 8, minHeight: 46 }} onClick={() => setDeliveryFormId(drop.id)}>
-                    <CheckCircle2 size={17} /> Deliver
+                    <CheckCircle2 size={17} /> Confirm delivery
                   </button>
                 )
               )}
               {drop.status === 'DELIVERED' && <p style={{ color: '#86efac', margin: '0.5rem 0 0' }}>Delivered {drop.deliveredAt ? formatTime(drop.deliveredAt) : ''}{drop.onTime === true ? ' · On time' : drop.onTime === false ? ' · Late' : ''}</p>}
             </article>
           ))}
-          {!drops.length && <p className="text-muted">No drops assigned to you today.</p>}
+          {!drops.length && <div className="empty-state">No deliveries are assigned to you today. Check back later or ask dispatch.</div>}
         </div>
       )}
       <p className="text-muted" style={{ marginTop: 16 }}>Completed: {completed.length} · Remaining: {remaining.length}</p>

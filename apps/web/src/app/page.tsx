@@ -1,110 +1,39 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import { ArrowRight, ChefHat, CheckCircle2, ClipboardList, Leaf, Truck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { ArrowRight, ShieldCheck, Users, Lock } from 'lucide-react';
 
 export default function HomePage() {
   const { user } = useAuth();
 
   return (
-    <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
-      {/* Hero Section */}
-      <div
-        style={{
-          textAlign: 'center',
-          padding: '5rem 1rem 4rem',
-          maxWidth: '720px',
-          margin: '0 auto',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 'clamp(2.4rem, 5vw, 3.5rem)',
-            fontWeight: 800,
-            lineHeight: 1.15,
-            marginBottom: '1.2rem',
-            letterSpacing: '-0.03em',
-          }}
-        >
-          Welcome to <span className="gradient-text">FernLeaf Kitchen</span>
-        </h1>
+    <main className="container animate-fade-in" style={{ paddingTop: 'clamp(3rem, 7vw, 6rem)', paddingBottom: '5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 'clamp(2rem, 5vw, 5rem)', alignItems: 'center' }}>
+        <div>
+          <span className="page-eyebrow"><Leaf size={15} /> One kitchen, one clear workflow</span>
+          <h1 style={{ fontSize: 'clamp(2.8rem, 7vw, 5.2rem)', lineHeight: 1.04, marginBottom: '1.25rem', maxWidth: 720 }}>A smoother day starts <span className="gradient-text">here.</span></h1>
+          <p className="page-subtitle" style={{ fontSize: '1.1rem', marginBottom: '2rem' }}>FernLeaf Kitchen keeps orders, preparation and deliveries together—so your team always knows what comes next.</p>
+          <Link href={user ? '/dashboard' : '/login'} className="btn-primary" id={user ? 'hero-dashboard-btn' : 'hero-login-btn'} style={{ padding: '0.9rem 1.35rem' }}>
+            {user ? 'Open my workspace' : 'Sign in to get started'} <ArrowRight size={18} />
+          </Link>
+          <p className="help-note" style={{ marginTop: 14 }}>{user ? 'Your work for today is waiting on the overview page.' : 'Your administrator can provide your sign-in details.'}</p>
+        </div>
 
-        <p
-          style={{
-            fontSize: '1.15rem',
-            color: 'var(--text-muted)',
-            lineHeight: 1.6,
-            marginBottom: '2.5rem',
-          }}
-        >
-          Sign in to access your personalized dashboard and explore everything available to you.
-        </p>
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          {user ? (
-            <Link href="/dashboard" className="btn-primary" id="hero-dashboard-btn">
-              <span>Go to Dashboard</span>
-              <ArrowRight size={18} />
-            </Link>
-          ) : (
-            <>
-              <Link href="/login" className="btn-primary" id="hero-login-btn">
-                <span>Sign In</span>
-                <ArrowRight size={18} />
-              </Link>
-            </>
-          )}
+        <div className="glass-panel" style={{ padding: '1.4rem', background: 'linear-gradient(150deg, rgba(51,99,67,.65), rgba(23,38,37,.96) 58%)', borderColor: 'rgba(169,232,157,.28)' }} aria-label="How the kitchen workflow works">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}><span className="page-eyebrow" style={{ margin: 0 }}>Today&apos;s flow</span><CheckCircle2 color="var(--accent-primary)" size={20} /></div>
+          {[
+            { icon: ClipboardList, title: 'Orders', description: 'Create, review and confirm what people need.' },
+            { icon: ChefHat, title: 'Kitchen', description: 'Prepare each dish and mark it ready.' },
+            { icon: Truck, title: 'Delivery', description: 'Assign a driver and get food on its way.' },
+          ].map(({ icon: Icon, title, description }, index) => (
+            <div key={title} style={{ display: 'flex', gap: 14, padding: '1rem 0', borderTop: index ? '1px solid var(--border-color)' : undefined }}>
+              <span className="surface-link-icon"><Icon size={20} /></span>
+              <div><h2 style={{ fontSize: '1.05rem', marginBottom: 4 }}>{title}</h2><p className="help-note">{description}</p></div>
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* Feature Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '1.5rem',
-          maxWidth: '900px',
-          margin: '0 auto',
-        }}
-      >
-        <div className="glass-panel" style={{ padding: '1.8rem' }}>
-          <div style={{ color: '#38bdf8', marginBottom: '1rem' }}>
-            <Users size={28} />
-          </div>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', fontWeight: 600 }}>
-            Your Account
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-            Manage your profile and access content tailored to your account.
-          </p>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.8rem' }}>
-          <div style={{ color: '#10b981', marginBottom: '1rem' }}>
-            <ShieldCheck size={28} />
-          </div>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', fontWeight: 600 }}>
-            Secure Access
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-            Your data is protected with secure authentication and role-based access control.
-          </p>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.8rem' }}>
-          <div style={{ color: '#a855f7', marginBottom: '1rem' }}>
-            <Lock size={28} />
-          </div>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', fontWeight: 600 }}>
-            Privacy First
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-            We take your privacy seriously. Only you and authorized roles can access your data.
-          </p>
-        </div>
-      </div>
-    </div>
+    </main>
   );
 }

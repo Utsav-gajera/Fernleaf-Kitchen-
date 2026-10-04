@@ -49,7 +49,7 @@ const emptyDishForm = {
   imageUrl: '',
   sku: '',
   temperature: 'HOT',
-  costPriceMinor: '0',
+  costPriceMinor: '0.00',
   stationId: '',
   minQuantity: '0',
   isActive: true,
@@ -72,6 +72,7 @@ export default function DishesCataloguePage() {
   });
   const [dishForm, setDishForm] = useState(emptyDishForm);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -96,15 +97,18 @@ export default function DishesCataloguePage() {
   const saveDish = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setMessage('');
 
     try {
+      const cost = Number(dishForm.costPriceMinor);
+      if (!Number.isFinite(cost) || cost < 0) throw new Error('Enter a valid cost in dollars.');
       const payload = {
         name: dishForm.name.trim(),
         description: dishForm.description.trim() || undefined,
         imageUrl: dishForm.imageUrl.trim() || undefined,
         sku: dishForm.sku.trim() || undefined,
         temperature: dishForm.temperature,
-        costPriceMinor: Number(dishForm.costPriceMinor) || 0,
+        costPriceMinor: Math.round(cost * 100),
         stationId: dishForm.stationId || undefined,
         minQuantity: Number(dishForm.minQuantity) || undefined,
         isActive: dishForm.isActive,
@@ -138,6 +142,7 @@ export default function DishesCataloguePage() {
 
       setDishForm(emptyDishForm);
       await loadData();
+      setMessage(dishForm.id ? 'Dish updated. Your changes are saved.' : 'Dish created. Add another dish or choose one to edit.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save dish');
     }
@@ -146,6 +151,7 @@ export default function DishesCataloguePage() {
   const toggleDishActive = async (dishId: string) => {
     try {
       setError('');
+      setMessage('');
       await apiRequest(`/catalogue/dishes/${dishId}/toggle-active`, { method: 'PATCH' });
       await loadData();
     } catch (err) {
@@ -155,22 +161,25 @@ export default function DishesCataloguePage() {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="page-heading">
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.35rem' }}>Dishes</h1>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Manage dishes, assignments and active status.</p>
+          <span className="page-eyebrow">Menu catalogue</span>
+          <h1 className="page-title">Dishes</h1>
+          <p className="page-subtitle">Add the basics, then connect each dish to categories and the choices employees can make.</p>
         </div>
         <Link href="/dashboard/catalogue" className="btn-secondary btn-sm">Back to catalogue</Link>
       </div>
 
-      {error ? <div className="glass-panel" style={{ padding: '0.9rem 1rem', marginBottom: '1.2rem', color: '#fda4af' }}>{error}</div> : null}
+      {error ? <div className="notice error" role="alert" style={{ marginBottom: '1.2rem' }}>{error}</div> : null}
+      {message ? <div className="notice" role="status" style={{ marginBottom: '1.2rem' }}>{message}</div> : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
           <form onSubmit={saveDish} style={{ display: 'grid', gap: '0.9rem' }}>
-            <input value={dishForm.name} onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })} style={fieldStyle} placeholder="Dish name" required />
-            <input value={dishForm.sku} onChange={(e) => setDishForm({ ...dishForm, sku: e.target.value })} style={fieldStyle} placeholder="SKU" required />
-            <textarea value={dishForm.description} onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })} style={{ ...fieldStyle, minHeight: '90px' }} placeholder="Description" />
+            <div><h2 style={{ fontSize: '1.15rem' }}>{dishForm.id ? 'Edit dish' : 'Create a dish'}</h2><p className="help-note">A name and unique dish code are required. The rest can be updated later.</p></div>
+            <label className="form-label">Dish name<input value={dishForm.name} onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })} style={fieldStyle} placeholder="For example, Garden lunch bowl" required /></label>
+            <label className="form-label">Dish code<input value={dishForm.sku} onChange={(e) => setDishForm({ ...dishForm, sku: e.target.value })} style={fieldStyle} placeholder="For example, BOWL-001" required /><span className="help-note">Use a unique code to identify this dish.</span></label>
+            <label className="form-label">Description<textarea value={dishForm.description} onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })} style={{ ...fieldStyle, minHeight: '90px' }} placeholder="What is in this dish?" /></label>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div style={{ display: 'grid', gap: '0.3rem' }}>
@@ -181,8 +190,8 @@ export default function DishesCataloguePage() {
                 </select>
               </div>
               <div style={{ display: 'grid', gap: '0.3rem' }}>
-                <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost price (minor)</label>
-                <input type="number" value={dishForm.costPriceMinor} onChange={(e) => setDishForm({ ...dishForm, costPriceMinor: e.target.value })} style={fieldStyle} placeholder="0" />
+                <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Cost to make ($)</label>
+                <input type="number" min="0" step="0.01" value={dishForm.costPriceMinor} onChange={(e) => setDishForm({ ...dishForm, costPriceMinor: e.target.value })} style={fieldStyle} placeholder="0.00" />
               </div>
             </div>
 
@@ -195,15 +204,15 @@ export default function DishesCataloguePage() {
                 </select>
               </div>
               <div style={{ display: 'grid', gap: '0.3rem' }}>
-                <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Min quantity</label>
+                <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Minimum order quantity</label>
                 <input type="number" value={dishForm.minQuantity} onChange={(e) => setDishForm({ ...dishForm, minQuantity: e.target.value })} style={fieldStyle} placeholder="0" />
               </div>
             </div>
-            <input value={dishForm.imageUrl} onChange={(e) => setDishForm({ ...dishForm, imageUrl: e.target.value })} style={fieldStyle} placeholder="Image URL" />
+            <label className="form-label">Dish image link (optional)<input type="url" value={dishForm.imageUrl} onChange={(e) => setDishForm({ ...dishForm, imageUrl: e.target.value })} style={fieldStyle} placeholder="https://…" /></label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <input type="checkbox" checked={dishForm.isActive} onChange={(e) => setDishForm({ ...dishForm, isActive: e.target.checked })} />
-              <span>Active</span>
+              <span>Available on the menu</span>
             </label>
 
             <div style={{ display: 'grid', gap: '0.4rem' }}>
@@ -257,8 +266,8 @@ export default function DishesCataloguePage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn-primary">{dishForm.id ? 'Update Dish' : 'Create Dish'}</button>
-              <button type="button" className="btn-secondary" onClick={() => setDishForm(emptyDishForm)}>Reset</button>
+              <button type="submit" className="btn-primary">{dishForm.id ? 'Save changes' : 'Create dish'}</button>
+              <button type="button" className="btn-secondary" onClick={() => setDishForm(emptyDishForm)}>Clear form</button>
             </div>
           </form>
         </div>
@@ -282,7 +291,7 @@ export default function DishesCataloguePage() {
                   imageUrl: dish.image ?? '',
                   sku: dish.sku,
                   temperature: dish.temperature ?? 'HOT',
-                  costPriceMinor: String(dish.costPriceMinor ?? 0),
+                  costPriceMinor: ((dish.costPriceMinor ?? 0) / 100).toFixed(2),
                   stationId: dish.station?.id ?? '',
                   minQuantity: String(dish.minQuantity ?? 0),
                   isActive: dish.isActive,
