@@ -1,6 +1,34 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { OrdersService } from './orders.service';
+import { OrderListQueryDto } from './dto/order.dto';
+
+test('lists newest-created orders first before pagination', async () => {
+  let findManyArgs: { skip: number; take: number; orderBy: unknown } | undefined;
+  const service = new OrdersService(
+    {
+      order: {
+        findMany: (args: typeof findManyArgs) => {
+          findManyArgs = args;
+          return Promise.resolve([]);
+        },
+        count: () => Promise.resolve(0),
+      },
+      $transaction: (queries: Promise<unknown>[]) => Promise.all(queries),
+    } as never,
+    {} as never,
+    {} as never,
+  );
+
+  const query = new OrderListQueryDto();
+  query.page = 2;
+  query.limit = 10;
+  await service.findAll(query);
+
+  assert.deepEqual(findManyArgs?.orderBy, [{ createdAt: 'desc' }, { id: 'desc' }]);
+  assert.equal(findManyArgs?.skip, 10);
+  assert.equal(findManyArgs?.take, 10);
+});
 
 test('rejects a draft delivery-date edit when the selected date is already past cutoff', async () => {
   const service = new OrdersService(

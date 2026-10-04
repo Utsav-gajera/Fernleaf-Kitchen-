@@ -76,7 +76,7 @@ export class OrdersService {
         where,
         skip,
         take: query.limit,
-        orderBy: { deliveryDate: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: { company: true, employee: true },
       }),
       this.prisma.order.count({ where }),
