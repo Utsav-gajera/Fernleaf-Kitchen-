@@ -218,7 +218,12 @@ export default function CompanyAdminPage() {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  const hasRequiredCompanyFields = Boolean(form.name.trim()) && companyDomains.length > 0;
+  const hasInitialAddress = Boolean(
+    addressForm.addressLine1.trim() && addressForm.city.trim() && addressForm.postalCode.trim(),
+  );
+  const hasRequiredCompanyFields = Boolean(form.name.trim())
+    && companyDomains.length > 0
+    && (Boolean(selectedCompanyId) || hasInitialAddress);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -245,6 +250,18 @@ export default function CompanyAdminPage() {
         sat: Boolean(form.sat),
         sun: Boolean(form.sun),
         domains: companyDomains,
+        ...(!selectedCompanyId
+          ? {
+              addresses: [{
+                addressLine1: addressForm.addressLine1.trim(),
+                addressLine2: addressForm.addressLine2.trim() || undefined,
+                city: addressForm.city.trim(),
+                postalCode: addressForm.postalCode.trim(),
+                instructions: addressForm.instructions.trim() || undefined,
+                isDefault: true,
+              }],
+            }
+          : {}),
       };
 
       if (!payload.name) {
@@ -253,6 +270,10 @@ export default function CompanyAdminPage() {
 
       if (payload.domains.length === 0) {
         throw new Error('At least one company domain is required.');
+      }
+
+      if (!selectedCompanyId && !hasInitialAddress) {
+        throw new Error('A primary delivery address is required.');
       }
 
       const response = selectedCompanyId
@@ -270,6 +291,7 @@ export default function CompanyAdminPage() {
       }
 
       setForm(emptyForm);
+      setAddressForm(emptyAddressForm);
       setSelectedCompanyId(selectedCompanyId ?? response?.id ?? null);
       await loadCompanies(page);
     } catch (err) {
@@ -549,6 +571,17 @@ export default function CompanyAdminPage() {
                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email domains *</label>
                 <input value={form.domains} onChange={(e) => setForm({ ...form, domains: e.target.value })} style={fieldStyle} placeholder="example.com, partner.co.uk" required />
               </div>
+
+              {!selectedCompanyId && <div style={{ display: 'grid', gap: '0.7rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Primary delivery address *</label>
+                <input value={addressForm.addressLine1} onChange={(e) => setAddressForm({ ...addressForm, addressLine1: e.target.value })} style={fieldStyle} placeholder="Address line 1" required />
+                <input value={addressForm.addressLine2} onChange={(e) => setAddressForm({ ...addressForm, addressLine2: e.target.value })} style={fieldStyle} placeholder="Address line 2 (optional)" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7rem' }}>
+                  <input value={addressForm.city} onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })} style={fieldStyle} placeholder="City" required />
+                  <input value={addressForm.postalCode} onChange={(e) => setAddressForm({ ...addressForm, postalCode: e.target.value })} style={fieldStyle} placeholder="Postal code" required />
+                </div>
+                <input value={addressForm.instructions} onChange={(e) => setAddressForm({ ...addressForm, instructions: e.target.value })} style={fieldStyle} placeholder="Delivery instructions" />
+              </div>}
 
               {selectedCompanyId ? (
                 <div style={{ display: 'grid', gap: '0.35rem' }}>

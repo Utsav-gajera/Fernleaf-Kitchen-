@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingContext, PricingResolver } from './pricing.resolver';
+import { Prisma } from '@prisma/client';
+import { CreatePriceTierDto, UpdatePriceTierDto } from './dto/price-tier.dto';
 
 type ItemType = 'dish' | 'option';
 
@@ -9,6 +11,108 @@ export class PricingService {
   private readonly pricingResolver = new PricingResolver();
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async createTier(data: CreatePriceTierDto) {
+    await this.validateTierRule(data);
+    const tierCount = await this.prisma.priceTier.count();
+    const isDefault = data.isDefault ?? tierCount === 0;
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (isDefault) {
+          await tx.priceTier.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+        }
+        return tx.priceTier.create({
+          data: {
+            name: data.name.trim(),
+            description: data.description?.trim() || null,
+            isDefault,
+            derivedFromTierId: data.derivedFromTierId || null,
+            multiplier: data.multiplier ?? null,
+            markupPercent: data.markupPercent ?? null,
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException(`Price tier '${data.name.trim()}' conflicts with an existing name or default selection. Refresh and try again.`);
+      }
+      throw error;
+    }
+  }
+
+  async updateTier(id: string, data: UpdatePriceTierDto) {
+    const existing = await this.prisma.priceTier.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Price tier ${id} was not found.`);
+    const merged = {
+      name: data.name ?? existing.name,
+      description: data.description ?? existing.description ?? undefined,
+      isDefault: data.isDefault ?? existing.isDefault,
+      derivedFromTierId: data.derivedFromTierId !== undefined ? data.derivedFromTierId : existing.derivedFromTierId,
+      multiplier: data.multiplier !== undefined ? data.multiplier : existing.multiplier,
+      markupPercent: data.markupPercent !== undefined ? data.markupPercent : existing.markupPercent,
+    };
+    await this.validateTierRule(merged, id);
+    if (existing.isDefault && data.isDefault === false) {
+      const anotherDefault = await this.prisma.priceTier.count({ where: { isDefault: true, id: { not: id } } });
+      if (anotherDefault === 0) {
+        throw new BadRequestException('Choose another default tier before removing the current default.');
+      }
+    }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (merged.isDefault) {
+          await tx.priceTier.updateMany({ where: { isDefault: true, id: { not: id } }, data: { isDefault: false } });
+        }
+        return tx.priceTier.update({
+          where: { id },
+          data: {
+            name: merged.name.trim(),
+            description: merged.description?.trim() || null,
+            isDefault: merged.isDefault,
+            derivedFromTierId: merged.derivedFromTierId || null,
+            multiplier: merged.multiplier ?? null,
+            markupPercent: merged.markupPercent ?? null,
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException(`Price tier '${merged.name.trim()}' conflicts with an existing name or default selection. Refresh and try again.`);
+      }
+      throw error;
+    }
+  }
+
+  private async validateTierRule(
+    data: Pick<CreatePriceTierDto, 'derivedFromTierId' | 'multiplier' | 'markupPercent'>,
+    tierId?: string,
+  ) {
+    if (data.multiplier != null && (data.derivedFromTierId || data.markupPercent != null)) {
+      throw new BadRequestException('A tier must use either a cost multiplier or a parent-tier markup, not both.');
+    }
+    if (data.derivedFromTierId && data.markupPercent == null) {
+      throw new BadRequestException('A tier derived from another tier requires a markup percentage.');
+    }
+    if (!data.derivedFromTierId && data.markupPercent != null) {
+      throw new BadRequestException('A markup percentage requires a parent tier.');
+    }
+    if (!data.derivedFromTierId) return;
+    if (data.derivedFromTierId === tierId) {
+      throw new BadRequestException('A price tier cannot derive from itself.');
+    }
+    const visited = new Set<string>(tierId ? [tierId] : []);
+    let cursor: string | null = data.derivedFromTierId;
+    while (cursor) {
+      if (visited.has(cursor)) throw new BadRequestException('Price-tier derivation cannot contain a cycle.');
+      visited.add(cursor);
+      const parent: { derivedFromTierId: string | null } | null = await this.prisma.priceTier.findUnique({
+        where: { id: cursor },
+        select: { derivedFromTierId: true },
+      });
+      if (!parent) throw new BadRequestException(`Parent price tier ${cursor} was not found.`);
+      cursor = parent.derivedFromTierId;
+    }
+  }
 
   private async findEffectiveTier(companyTierId?: string) {
     if (companyTierId) {

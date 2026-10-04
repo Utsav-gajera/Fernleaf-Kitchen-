@@ -9,6 +9,7 @@ out/
 
 # NestJS build
 dist/
+*.tsbuildinfo
 
 # Environment files
 .env

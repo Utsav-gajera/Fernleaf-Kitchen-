@@ -24,7 +24,6 @@ export class CombinationValidationError extends Error {
 export interface CombinationOptionGroup {
   id: string;
   isRequired: boolean;
-  allowPortions: boolean;
   optionIds: ReadonlySet<string> | readonly string[];
 }
 
@@ -122,7 +121,7 @@ export class CombinationValidator {
         );
       }
 
-      if (selectedGroups.has(selection.optionGroupId) && !group.allowPortions) {
+      if (selectedGroups.has(selection.optionGroupId)) {
         throw new CombinationValidationError(
           CombinationErrorCode.DUPLICATE_GROUP_SELECTION,
           `Option group ${selection.optionGroupId} was selected more than once`,

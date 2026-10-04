@@ -3,12 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/employee.dto';
 
 @Injectable()
 export class EmployeesService {
-  private readonly publicDomains = new Set(['gmail.com', 'yahoo.com', 'outlook.com']);
+  private readonly publicDomains = new Set([
+    'gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+    'live.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com',
+  ]);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -18,7 +22,7 @@ export class EmployeesService {
     dietaryPreferences: { include: { dietaryTag: true } },
   };
 
-  private validateEmail(email: string) {
+  private async validateEmail(email: string, companyId: string) {
     const domain = email.split('@')[1]?.toLowerCase();
 
     if (!domain) {
@@ -27,6 +31,13 @@ export class EmployeesService {
 
     if (this.publicDomains.has(domain)) {
       throw new BadRequestException(`Public email domain '${domain}' is not allowed.`);
+    }
+    const claimed = await this.prisma.companyDomain.findFirst({
+      where: { companyId, domain },
+      select: { id: true },
+    });
+    if (!claimed) {
+      throw new BadRequestException(`Email domain '${domain}' is not claimed by the selected company.`);
     }
   }
 
@@ -76,39 +87,28 @@ export class EmployeesService {
 
   async create(data: CreateEmployeeDto) {
     await this.ensureCompanyExists(data.companyId);
-    this.validateEmail(data.email);
-
-    const employee = await this.prisma.employee.create({
-      data: {
-        companyId: data.companyId,
-        name: data.name,
-        email: data.email,
-        canChooseDeliveryAddress: data.canChooseDeliveryAddress ?? false,
-        canChangeDeliveryTime: data.canChangeDeliveryTime ?? false,
-        canChangePackaging: data.canChangePackaging ?? false,
-      },
-      include: this.employeeInclude,
-    });
-
-    if (data.allergies?.length) {
-      await this.prisma.employeeAllergen.createMany({
-        data: (await this.resolveAllergies(data.allergies)).map((entry) => ({
-          employeeId: employee.id,
-          allergenId: entry.allergenId,
-        })),
+    await this.validateEmail(data.email, data.companyId);
+    const allergies = data.allergies?.length ? await this.resolveAllergies(data.allergies) : [];
+    const dietaryTags = data.dietaryPreferences?.length
+      ? await this.resolveDietaryTags(data.dietaryPreferences)
+      : [];
+    try {
+      return await this.prisma.employee.create({
+        data: {
+          companyId: data.companyId,
+          name: data.name,
+          email: data.email.toLowerCase(),
+          canChooseDeliveryAddress: data.canChooseDeliveryAddress ?? false,
+          canChangeDeliveryTime: data.canChangeDeliveryTime ?? false,
+          canChangePackaging: data.canChangePackaging ?? false,
+          allergies: { create: allergies },
+          dietaryPreferences: { create: dietaryTags },
+        },
+        include: this.employeeInclude,
       });
+    } catch (error) {
+      this.rethrowUniqueEmail(error, data.email);
     }
-
-    if (data.dietaryPreferences?.length) {
-      await this.prisma.employeeDietaryTag.createMany({
-        data: (await this.resolveDietaryTags(data.dietaryPreferences)).map((entry) => ({
-          employeeId: employee.id,
-          dietaryTagId: entry.dietaryTagId,
-        })),
-      });
-    }
-
-    return this.findOne(employee.id);
   }
 
   async update(id: string, data: UpdateEmployeeDto) {
@@ -122,42 +122,49 @@ export class EmployeesService {
       await this.ensureCompanyExists(data.companyId);
     }
 
-    if (data.email) {
-      this.validateEmail(data.email);
+    if (data.email || data.companyId) {
+      await this.validateEmail(data.email ?? employee.email, data.companyId ?? employee.companyId);
     }
 
-    if (data.companyId || data.name || data.email || data.canChooseDeliveryAddress !== undefined || data.canChangeDeliveryTime !== undefined || data.canChangePackaging !== undefined) {
-      await this.prisma.employee.update({
-        where: { id },
-        data: {
-          companyId: data.companyId,
-          name: data.name,
-          email: data.email,
-          canChooseDeliveryAddress: data.canChooseDeliveryAddress,
-          canChangeDeliveryTime: data.canChangeDeliveryTime,
-          canChangePackaging: data.canChangePackaging,
-        },
+    const allergies = data.allergies ? await this.resolveAllergies(data.allergies) : undefined;
+    const dietaryTags = data.dietaryPreferences
+      ? await this.resolveDietaryTags(data.dietaryPreferences)
+      : undefined;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (data.companyId && data.companyId !== employee.companyId) {
+          await tx.company.updateMany({ where: { ownerId: id }, data: { ownerId: null } });
+        }
+        await tx.employee.update({
+          where: { id },
+          data: {
+            companyId: data.companyId,
+            name: data.name,
+            email: data.email?.toLowerCase(),
+            canChooseDeliveryAddress: data.canChooseDeliveryAddress,
+            canChangeDeliveryTime: data.canChangeDeliveryTime,
+            canChangePackaging: data.canChangePackaging,
+          },
+        });
+        if (allergies) {
+          await tx.employeeAllergen.deleteMany({ where: { employeeId: id } });
+          if (allergies.length) {
+            await tx.employeeAllergen.createMany({
+              data: allergies.map((entry) => ({ employeeId: id, allergenId: entry.allergenId })),
+            });
+          }
+        }
+        if (dietaryTags) {
+          await tx.employeeDietaryTag.deleteMany({ where: { employeeId: id } });
+          if (dietaryTags.length) {
+            await tx.employeeDietaryTag.createMany({
+              data: dietaryTags.map((entry) => ({ employeeId: id, dietaryTagId: entry.dietaryTagId })),
+            });
+          }
+        }
       });
-    }
-
-    if (data.allergies) {
-      await this.prisma.employeeAllergen.deleteMany({ where: { employeeId: id } });
-      await this.prisma.employeeAllergen.createMany({
-        data: (await this.resolveAllergies(data.allergies)).map((entry) => ({
-          employeeId: id,
-          allergenId: entry.allergenId,
-        })),
-      });
-    }
-
-    if (data.dietaryPreferences) {
-      await this.prisma.employeeDietaryTag.deleteMany({ where: { employeeId: id } });
-      await this.prisma.employeeDietaryTag.createMany({
-        data: (await this.resolveDietaryTags(data.dietaryPreferences)).map((entry) => ({
-          employeeId: id,
-          dietaryTagId: entry.dietaryTagId,
-        })),
-      });
+    } catch (error) {
+      this.rethrowUniqueEmail(error, data.email ?? employee.email);
     }
 
     return this.findOne(id);
@@ -191,5 +198,12 @@ export class EmployeesService {
     }
 
     return resolved;
+  }
+
+  private rethrowUniqueEmail(error: unknown, email: string): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new BadRequestException(`Employee email '${email.toLowerCase()}' is already in use.`);
+    }
+    throw error;
   }
 }

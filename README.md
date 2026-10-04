@@ -1,198 +1,177 @@
-# Next.js + NestJS + Prisma + Cloud Database Starter Boilerplate
+# FernLeaf Kitchen Operations Admin Panel
 
-A clean, minimalist, full-stack starter boilerplate featuring **Next.js (App Router)** on the frontend, **NestJS** on the backend, **Prisma ORM** connected to a **Cloud PostgreSQL Database**, and **Role-Based Access Control (RBAC)**.
+Full-stack operations software for company catering: catalogue and company-specific pricing, employee menus, order cutoff processing, kitchen preparation, dispatch, driver delivery, invoicing, staff permissions, and role-specific dashboards.
 
----
+The repository is an npm-workspaces monorepo using Next.js 14, NestJS 10, Prisma 5, and PostgreSQL. Monetary amounts are stored and calculated as integer minor units.
 
-## ⚡ The Stack (Mandatory & Modern)
+## Assignment coverage
 
-| Layer        | Technology                   | Key Features                                                                  |
-| ------------ | ---------------------------- | ----------------------------------------------------------------------------- |
-| **Frontend** | **Next.js 14+ (App Router)** | React 18, Sleek Dark Glassmorphism, Auth Provider Context, Role-Guarded UI    |
-| **Backend**  | **NestJS**                   | Modular Architecture, Passport JWT Authentication, RolesGuard, ValidationPipe |
-| **ORM**      | **Prisma**                   | Type-safe queries, automatic migrations, seed scripts                         |
-| **Database** | **Cloud PostgreSQL**         | Neon (Recommended) / Supabase / Railway / Render                              |
+All **Must** workflows in the assignment are implemented:
 
----
+- Catalogue: categories (including direct-access secret categories), dishes, option groups/options, dietary and allergy metadata, activation, ordering, and minimum quantities.
+- Pricing: one default tier, explicit dish/option prices, cost multipliers, parent-tier markups, and company tier assignment.
+- Companies and employees: claimed domains, addresses, delivery weekdays and defaults, holidays, per-company lead time, per-employee permissions, menu visibility, and employee moves.
+- Orders: employee-specific menu and pricing, combination validation, drafts, placement, cutoff confirmation/rejection, search/filter/pagination, operational overrides, cancellation, audit timeline, and short-delivery corrections.
+- Operations: preparation units by station, persisted planned kitchen/dispatch timestamps, grouped delivery drops, optimistic driver assignment, driver delivery confirmation, notes, and optional photo evidence.
+- Billing: invoice creation from eligible uninvoiced orders, immutable snapshots, unpaid-order removal and reconciliation, paid invoice immutability, and invoice detail.
+- Platform: persisted timezone/calendar/cutoff settings, four staff roles, centrally mapped permissions, and server-calculated dashboards.
 
-## 🚀 Key Features
+The optional **Should** items intentionally deferred are portion-size ordering and employee CSV import. A legacy `allowPortions` database field is retained solely for migration compatibility; it is not exposed or used by validation. If given more time, the next priorities would be CSV import with a dry-run/error report, first-class portion models and price rules, end-to-end browser tests, and deployment/observability hardening.
 
-- **Simple Authentication**:
-  - `POST /auth/register` — Register user with email, password, and role (`USER` or `ADMIN`).
-  - `POST /auth/login` — Authenticate and receive a JWT token.
-  - `POST /auth/logout` — Instant session termination.
-  - `GET /auth/me` — Protected endpoint returning the authenticated user profile.
-- **Role-Based Access Control (RBAC)**:
-  - Role enum: `USER` and `ADMIN`.
-  - Protected endpoint `GET /auth/admin-only` demonstrates route guarding via `@Roles('ADMIN')`.
-  - Frontend dashboard includes interactive test buttons to demonstrate permitted access for Admins and 403 Forbidden for standard users.
-- **Cloud Database Ready**:
-  - Configured for SSL-enabled cloud databases like Neon or Supabase out-of-the-box.
-  - No local database installation required.
-- **Company Billing**:
-  - Confirmed billable orders can be included in one company invoice only.
-  - Invoice totals use integer minor units and invoices can be marked paid.
-  - An order on an unpaid invoice must be removed before financial changes; paid invoices are financially immutable.
-- **Kitchen Settings**:
-  - Admins can edit the kitchen timezone, cutoff time, cutoff working-day count, working weekdays, and holidays from `/dashboard/settings`.
-  - Cutoff calculations read these persisted settings as their single source of truth.
+Each staff account has exactly one role. Admin can manage every operational workspace and use documented overrides, but does not inherit identity-scoped Driver permissions: only the assigned Driver can open “My drops” or submit a delivery note/photo. Admin may record an exceptional delivered override from the Dispatch board; Dispatch staff can prepare and send drops but cannot confirm delivery on a driver's behalf.
 
----
+No live deployment URL is stored in this repository. Add the frontend and API URLs here when deploying for submission.
 
-## ☁️ Setting Up Your Free Cloud Database (Takes 1 Minute)
+## Architecture
 
-### Option 1: Neon Serverless Postgres (Recommended)
-
-1. Go to [https://neon.tech](https://neon.tech) and sign up (free, no credit card required).
-2. Click **Create Project** (choose your nearest region).
-3. Copy your Connection String (`postgresql://neondb_owner:***@ep-***.neon.tech/neondb?sslmode=require`).
-4. Paste it into `backend/.env` as `DATABASE_URL`.
-
-### Option 2: Supabase
-
-1. Go to [https://supabase.com](https://supabase.com) and create a free project.
-2. In Project Settings → Database, copy the URI connection string.
-3. Paste it into `backend/.env` as `DATABASE_URL`.
-
----
-
-## 🛠️ Quickstart (Running Locally)
-
-### 1. Install Dependencies
-
-In the root directory, run:
-
-```bash
-npm run install:all
+```mermaid
+flowchart LR
+  Browser[Next.js web app] -->|Bearer JWT / JSON| API[NestJS API]
+  API --> Auth[JWT authentication]
+  API --> Permissions[Central permission guard]
+  API --> Domains[Domain services]
+  Domains --> Prisma[Prisma ORM]
+  Prisma --> DB[(PostgreSQL)]
+  Domains --> Timeline[Order timeline events]
+  Domains --> Snapshots[Order and invoice snapshots]
 ```
 
-_(Or install each folder: `npm install` in root, `backend/`, and `frontend/`)_
+`apps/web` owns presentation, authenticated navigation, and client-side form ergonomics. `apps/api` is the authority for validation, permissions, prices, cutoff decisions, state transitions, grouping, and dashboard metrics. `packages/shared` contains role and permission contracts used across the monorepo.
 
-### 2. Configure Environment Variables
+### Core data model
 
-- In `backend/.env`:
-  ```env
-  PORT=3001
-  FRONTEND_URL=http://localhost:3000
-  JWT_SECRET=your_jwt_secret_key_12345
-  DATABASE_URL="YOUR_CLOUD_POSTGRES_CONNECTION_URL"
-  ```
-- In `frontend/.env.local`:
-  ```env
-  NEXT_PUBLIC_API_URL=http://localhost:3001
-  ```
-
-### 3. Sync Database Schema & Seed Demo Users
-
-Push your Prisma schema to your cloud database and run the seed script:
-
-```bash
-npm run db:push
-npm run db:seed
+```mermaid
+erDiagram
+  PRICE_TIER ||--o{ COMPANY : assigned
+  PRICE_TIER ||--o{ DISH_TIER_PRICE : prices
+  PRICE_TIER ||--o{ OPTION_TIER_PRICE : prices
+  COMPANY ||--|{ COMPANY_DOMAIN : claims
+  COMPANY ||--|{ COMPANY_ADDRESS : delivers_to
+  COMPANY ||--o{ EMPLOYEE : employs
+  CATEGORY }o--o{ DISH : contains
+  DISH }o--o{ OPTION_GROUP : configures
+  OPTION_GROUP }o--o{ OPTION : contains
+  EMPLOYEE ||--o{ ORDER : owns
+  ORDER ||--|{ ORDER_LINE : snapshots
+  ORDER_LINE ||--|{ ORDER_COMBINATION : splits
+  ORDER ||--o{ KITCHEN_UNIT : prepares
+  DROP ||--|{ ORDER : groups
+  STAFF_USER ||--o{ DROP : drives
+  COMPANY ||--o{ INVOICE : billed
+  INVOICE }o--o{ ORDER : snapshots
 ```
 
-### 4. Start the Application
+## Business rules and decisions
 
-Run both backend and frontend concurrently:
+- The configured kitchen timezone is the source of truth for “today,” cutoff instants, boards, and dashboards. Dates are persisted as date-only UTC values; operational timestamps are absolute instants.
+- Actual cutoff = delivery date minus the configured number of kitchen working days, at the configured cutoff time. Kitchen holidays and working weekdays affect this calculation; company holidays do not.
+- Planned dispatch-ready time = delivery instant minus the company delivery lead. Planned kitchen-ready time = planned dispatch-ready time minus the platform kitchen-ready buffer. Both are persisted on the order and copied to preparation units.
+- A normal menu omits secret categories. An explicitly addressed secret-category endpoint may return one, while still applying active-state, company visibility, and pricing rules.
+- Effective dish/option price precedence is explicit tier value, then cost multiplier, then parent-tier markup. Missing prices make an item unavailable. Option-group assignments do not add a second hidden surcharge.
+- Every combination quantity must be positive and combination quantities must sum to the line quantity. Required groups appear exactly once per combination and an option must belong to its selected group.
+- The cutoff processor is idempotent. Drafts reject; placed orders confirm, become billable, receive preparation units and planned timestamps, and enter operational grouping when ready.
+- Dispatch drops group orders by address, delivery date, and delivery time. Starting a grouped drop is blocked until every matching ready order is attached. Driver assignment uses optimistic concurrency.
+- Confirmed-through-kitchen-ready orders can receive admin delivery-detail overrides; planned times are recalculated. Changes are blocked once dispatch begins.
+- Admin cancellation is allowed before dispatch, removes operational units/grouping, and makes the order non-billable. Orders must be removed from unpaid invoices first; paid invoices are immutable.
+- A short-delivery correction is represented by an audited negative order line so the invariant `order total = sum(order lines)` remains true. It cannot increase the original total.
+- Invoice amounts are snapshots. Adding or removing an order always reconciles the invoice total; an empty invoice is deleted.
 
-```bash
-npm run dev
+## Dashboard metric definitions
+
+- Admin, for the current kitchen-local delivery date: order count; value of billable orders; count of billable uninvoiced orders; non-delivered drops whose planned delivery time has passed; and draft/placed orders requiring attention.
+- Kitchen, for that delivery date: pending, started, and completed unit counts; at-risk units at or beyond planned kitchen-ready time; late units beyond planned dispatch time.
+- Dispatch, for the kitchen-local day: kitchen-ready, dispatch-ready, out-for-delivery, unassigned ready, and late non-delivered drop counts.
+- Driver, scoped to the signed-in driver and kitchen-local day: earliest remaining drop, remaining count, and completed count.
+
+These metrics are computed by the API. The frontend only formats their returned values.
+
+## Local setup
+
+Prerequisites: Node.js 20+, npm, and PostgreSQL.
+
+1. Install workspace dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Copy `apps/api/.env.example` to `apps/api/.env` and set a real PostgreSQL `DATABASE_URL`. Set a strong `JWT_SECRET`; production startup rejects a missing secret. Copy `apps/web/.env.example` to `apps/web/.env.local`.
+
+3. Generate the client, apply migrations, and seed demo data:
+
+   ```bash
+   npm run db:generate
+   npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+   npm run db:seed
+   ```
+
+   For disposable local databases, `npm run db:push` can be used instead of migrations.
+
+4. Start both applications:
+
+   ```bash
+   npm run dev
+   ```
+
+   Web: `http://localhost:3000`; API: `http://localhost:3001`; health: `http://localhost:3001/health`.
+
+### Environment variables
+
+API (`apps/api/.env`):
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/kitchen_ops?schema=public"
+JWT_SECRET="replace-with-a-long-random-secret"
+FRONTEND_URL="http://localhost:3000"
+PORT=3001
 ```
 
-- **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **Backend API**: [http://localhost:3001](http://localhost:3001)
-- **Health Check**: [http://localhost:3001/health](http://localhost:3001/health)
+Web (`apps/web/.env.local`):
 
----
+```env
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+```
 
-## 🔑 Demo Test Accounts
+### Seeded staff accounts
 
-The seed script creates two pre-configured accounts to test RBAC immediately:
+All seeded accounts use password `Test@1234`:
 
-| Role      | Email               | Password    | Allowed Endpoints                               |
-| --------- | ------------------- | ----------- | ----------------------------------------------- |
-| **ADMIN** | `admin@starter.dev` | `Admin123!` | `/auth/me`, `/auth/admin-only` (All)            |
-| **USER**  | `user@starter.dev`  | `User123!`  | `/auth/me` (Restricted from `/auth/admin-only`) |
+| Role | Email |
+| --- | --- |
+| Admin | `admin@test.com` |
+| Kitchen | `kitchen@test.com` |
+| Dispatch | `dispatch@test.com` |
+| Driver | `driver@test.com` |
 
-_Tip: On the `/login` page, you can use the **1-Click Demo Fill** buttons to test without typing._
+Public registration is disabled. Admins create and deactivate staff through `/dashboard/staff`; deactivated accounts cannot log in and existing tokens are rejected.
 
----
+## Verification
 
-## 🌐 Live Deployment Guide
+```bash
+npm run typecheck
+npm test
+npm run lint
+npm run build
+```
 
-### 1. Database (Cloud)
+The automated tests cover permissions, company-domain uniqueness, pricing precedence and rounding, menu visibility, secret-category access, combination validity, cutoff timezone/calendar behavior, idempotent cutoff processing, kitchen and dispatch state machines, and billing eligibility/reconciliation.
 
-- Use **Neon** or **Supabase** (Already live from the steps above).
-
-### 2. Backend Deployment (Render / Railway / Fly.io)
-
-1. Push this repository to GitHub.
-2. Create a new Web Service on [Render](https://render.com) or [Railway](https://railway.app).
-3. Set **Root Directory** to `backend`.
-4. Build Command: `npm install && npm run prisma:generate && npm run build`
-5. Start Command: `npm run start:prod`
-6. Add Environment Variables:
-   - `DATABASE_URL`: Your cloud database URL.
-   - `JWT_SECRET`: A secure random string.
-   - `FRONTEND_URL`: Your deployed frontend domain (e.g. `https://your-frontend.vercel.app`).
-   - `PORT`: `3001` (or let provider assign).
-
-### 3. Frontend Deployment (Vercel)
-
-1. Import your GitHub repository into [Vercel](https://vercel.com).
-2. Set **Root Directory** to `frontend`.
-3. Add Environment Variable:
-   - `NEXT_PUBLIC_API_URL`: Your deployed backend URL (e.g. `https://your-backend.onrender.com`).
-4. Click **Deploy**.
-
----
-
-## 📁 Project Structure
+## Repository layout
 
 ```text
-├── backend/
-│   ├── prisma/
-│   │   ├── schema.prisma       # Prisma User model & Role enum
-│   │   └── seed.ts             # Pre-seeds Admin and User demo accounts
-│   ├── src/
-│   │   ├── auth/
-│   │   │   ├── decorators/     # @Roles() decorator
-│   │   │   ├── dto/            # RegisterDto, LoginDto (class-validator)
-│   │   │   ├── guards/         # JwtAuthGuard, RolesGuard
-│   │   │   ├── strategies/     # Passport JWT Strategy
-│   │   │   ├── auth.controller.ts  # /auth/register, /auth/login, /auth/logout, /auth/me, /auth/admin-only
-│   │   │   ├── auth.module.ts
-│   │   │   └── auth.service.ts
-│   │   ├── prisma/             # Global PrismaService & PrismaModule
-│   │   ├── app.module.ts       # Health checks and root routes
-│   │   └── main.ts             # CORS, global validation pipe, bootstrap
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── dashboard/page.tsx # Authenticated dashboard with live RBAC test
-│   │   │   ├── login/page.tsx     # Sign in with 1-click test fill
-│   │   │   ├── register/page.tsx  # Sign up with role selector
-│   │   │   ├── globals.css        # Clean glassmorphic design system
-│   │   │   ├── layout.tsx         # Navbar and AuthProvider wrapper
-│   │   │   └── page.tsx           # Landing page with health monitor
-│   │   ├── components/            # Navbar, UI elements
-│   │   ├── context/               # AuthContext (JWT management)
-│   │   ├── lib/                   # API client fetch wrapper
-│   │   └── types/                 # User and Auth response definitions
-│   └── .env.example
-└── README.md
+apps/
+  api/
+    prisma/              schema, migrations, and realistic seed
+    src/                 NestJS domain modules
+  web/
+    src/app/dashboard/   role and workflow screens
+    src/lib/             API and access helpers
+packages/
+  shared/                shared roles, permissions, and contracts
 ```
 
----
+## Deployment notes
 
-## 📝 API Endpoints Summary
+Build from the repository root with `npm run build`. Before starting the API, provide `DATABASE_URL`, `JWT_SECRET`, and the deployed `FRONTEND_URL`, run Prisma generation and `prisma migrate deploy`, then start `node apps/api/dist/apps/api/src/main.js` (or use the package start script). Build the web app with its deployed `NEXT_PUBLIC_API_URL`. Do not use the example JWT secret in production.
 
-| Method | Endpoint           | Description                               | Auth Required      |
-| ------ | ------------------ | ----------------------------------------- | ------------------ |
-| `GET`  | `/health`          | Server and Database connectivity check    | No                 |
-| `POST` | `/auth/register`   | Register a new user                       | No                 |
-| `POST` | `/auth/login`      | Login with email & password (returns JWT) | No                 |
-| `POST` | `/auth/logout`     | Logout (clears session)                   | No                 |
-| `GET`  | `/auth/me`         | Get current user profile                  | Yes (Bearer Token) |
-| `GET`  | `/auth/admin-only` | Restricted to `ADMIN` role                | Yes (Admin Role)   |
+The API refuses production startup without a database URL, an HTTPS frontend origin, and a JWT secret of at least 32 characters. It applies standard response-security headers, is proxy-aware, rate-limits login attempts and general API traffic in-process, and returns HTTP 503 from `/health` when PostgreSQL is unavailable. Run the service with Node 20, as specified in `.nvmrc` and the root `engines` field. For multiple API instances, replace the in-process rate-limit store with a shared Redis-backed limiter.

@@ -8,7 +8,6 @@ type OptionGroup = {
   id: string;
   name: string;
   isRequired: boolean;
-  allowPortions: boolean;
   options?: { option: { id: string; name: string }; displayOrder: number; extraChargeMinor: number }[];
 };
 
@@ -30,10 +29,8 @@ const emptyForm = {
   id: '',
   name: '',
   isRequired: false,
-  allowPortions: false,
   optionIds: [] as string[],
   optionOrderMap: {} as Record<string, string>,
-  optionExtraMap: {} as Record<string, string>,
 };
 
 export default function OptionGroupsCataloguePage() {
@@ -70,11 +67,9 @@ export default function OptionGroupsCataloguePage() {
       const payload = {
         name: form.name.trim(),
         isRequired: form.isRequired,
-        allowPortions: form.allowPortions,
         optionIds: form.optionIds.map((optionId) => ({
           optionId,
           displayOrder: Number(form.optionOrderMap[optionId] ?? 0),
-          extraChargeMinor: Number(form.optionExtraMap[optionId] ?? 0),
         })),
       };
 
@@ -120,26 +115,18 @@ export default function OptionGroupsCataloguePage() {
                 <input type="checkbox" checked={form.isRequired} onChange={(e) => setForm({ ...form, isRequired: e.target.checked })} />
                 <span>Required</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input type="checkbox" checked={form.allowPortions} onChange={(e) => setForm({ ...form, allowPortions: e.target.checked })} />
-                <span>Allow portions</span>
-              </label>
             </div>
 
             <div style={{ display: 'grid', gap: '0.5rem' }}>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Assigned options</div>
               <div style={{ display: 'grid', gap: '0.5rem' }}>
                 {referenceData.options.map((item) => (
-                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 90px 90px', gap: '0.5rem', alignItems: 'center' }}>
+                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 90px', gap: '0.5rem', alignItems: 'center' }}>
                     <input type="checkbox" checked={form.optionIds.includes(item.id)} onChange={() => setForm({ ...form, optionIds: toggleItemList(form.optionIds, item.id) })} />
                     <span>{item.name}</span>
                     <div style={{ display: 'grid', gap: '0.15rem' }}>
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Order</span>
                       <input type="number" min={0} value={form.optionOrderMap[item.id] ?? '0'} onChange={(e) => setForm({ ...form, optionOrderMap: { ...form.optionOrderMap, [item.id]: e.target.value } })} style={{ ...fieldStyle, padding: '0.5rem 0.5rem' }} />
-                    </div>
-                    <div style={{ display: 'grid', gap: '0.15rem' }}>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Extra</span>
-                      <input type="number" min={0} value={form.optionExtraMap[item.id] ?? '0'} onChange={(e) => setForm({ ...form, optionExtraMap: { ...form.optionExtraMap, [item.id]: e.target.value } })} style={{ ...fieldStyle, padding: '0.5rem 0.5rem' }} />
                     </div>
                   </div>
                 ))}
@@ -157,17 +144,15 @@ export default function OptionGroupsCataloguePage() {
           {items.map((item) => (
             <div key={item.id} className="glass-panel" style={{ padding: '0.9rem 1rem' }}>
               <div style={{ fontWeight: 700 }}>{item.name}</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>{item.isRequired ? 'Required' : 'Optional'} · {item.allowPortions ? 'Portions allowed' : 'No portions'}</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.2rem' }}>{item.isRequired ? 'Required' : 'Optional'}</div>
               <div style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{item.options?.map((entry) => entry.option.name).join(', ') || 'No assigned options'}</div>
               <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.7rem' }}>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setForm({
                   id: item.id,
                   name: item.name,
                   isRequired: item.isRequired,
-                  allowPortions: item.allowPortions,
                   optionIds: item.options?.map((entry) => entry.option.id) ?? [],
                   optionOrderMap: Object.fromEntries((item.options ?? []).map((entry) => [entry.option.id, String(entry.displayOrder ?? 0)])),
-                  optionExtraMap: Object.fromEntries((item.options ?? []).map((entry) => [entry.option.id, String(entry.extraChargeMinor ?? 0)])),
                 })}>Edit</button>
               </div>
             </div>

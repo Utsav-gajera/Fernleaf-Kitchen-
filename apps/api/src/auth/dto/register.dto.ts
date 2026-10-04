@@ -12,7 +12,4 @@ export class RegisterDto {
   @IsString()
   name?: string;
 
-  @IsOptional()
-  @IsString()
-  role?: 'USER' | 'ADMIN';
 }

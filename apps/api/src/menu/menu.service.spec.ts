@@ -1,9 +1,11 @@
 import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MenuService } from './menu.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 
 test('employee menu excludes hidden categories and dishes and resolves option pricing', async () => {
-  const prisma: any = {
+  const prisma = {
     employee: {
       findUnique: async () => ({
         id: 'emp-1',
@@ -68,12 +70,15 @@ test('employee menu excludes hidden categories and dishes and resolves option pr
     },
   };
 
-  const pricingService: any = {
+  const pricingService = {
     calculateDishPrice: async () => ({ available: true, priceMinor: 2500, price: 25 }),
     calculateOptionPrice: async () => ({ available: true, priceMinor: 200, price: 2 }),
   };
 
-  const service = new MenuService(prisma, pricingService);
+  const service = new MenuService(
+    prisma as unknown as PrismaService,
+    pricingService as unknown as PricingService,
+  );
   const result = await service.getMenuForEmployee('emp-1');
 
   assert.equal(result.menu.categories.length, 1);
@@ -84,7 +89,7 @@ test('employee menu excludes hidden categories and dishes and resolves option pr
 });
 
 test('secret categories are not returned to employees', async () => {
-  const prisma: any = {
+  const prisma = {
     employee: {
       findUnique: async () => ({
         id: 'emp-2',
@@ -122,13 +127,58 @@ test('secret categories are not returned to employees', async () => {
     },
   };
 
-  const pricingService: any = {
+  const pricingService = {
     calculateDishPrice: async () => ({ available: true, priceMinor: 1500, price: 15 }),
     calculateOptionPrice: async () => ({ available: true, priceMinor: 0, price: 0 }),
   };
 
-  const service = new MenuService(prisma, pricingService);
+  const service = new MenuService(
+    prisma as unknown as PrismaService,
+    pricingService as unknown as PricingService,
+  );
   const result = await service.getMenuForEmployee('emp-2');
 
   assert.equal(result.menu.categories.length, 0);
+});
+
+test('a secret category is available only when explicitly addressed', async () => {
+  const prisma = {
+    employee: {
+      findUnique: async () => ({
+        id: 'emp-3',
+        name: 'Lin',
+        email: 'lin@fernleaf.test',
+        company: {
+          id: 'company-3',
+          name: 'FernLeaf',
+          priceTierId: 'tier-3',
+          hiddenCategories: [],
+          hiddenDishes: [],
+        },
+      }),
+    },
+    categoryDish: {
+      findMany: async () => [{
+        id: 'cd-secret',
+        category: { id: 'cat-secret', name: 'Direct Offers', isActive: true, isSecret: true, displayOrder: 1 },
+        dish: {
+          id: 'dish-secret', name: 'Direct Dish', isActive: true, costPriceMinor: 1000,
+          minQuantity: 1, optionGroups: [], allergies: [], dietaryTags: [],
+        },
+      }],
+    },
+  };
+  const pricingService = {
+    calculateDishPrice: async () => ({ available: true, priceMinor: 1500, price: 15 }),
+    calculateOptionPrice: async () => ({ available: true, priceMinor: 0, price: 0 }),
+  };
+  const service = new MenuService(
+    prisma as unknown as PrismaService,
+    pricingService as unknown as PricingService,
+  );
+
+  const result = await service.getMenuForEmployee('emp-3', 'cat-secret');
+
+  assert.equal(result.menu.categories.length, 1);
+  assert.equal(result.menu.categories[0].id, 'cat-secret');
 });

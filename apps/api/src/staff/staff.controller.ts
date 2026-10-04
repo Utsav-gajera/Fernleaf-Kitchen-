@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
 import { Permission } from '@project/shared';
+import { CreateStaffDto, UpdateStaffRoleDto, UpdateStaffStatusDto } from './dto/staff.dto';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -24,13 +25,19 @@ export class StaffController {
 
   @Post()
   @RequirePermissions(Permission.STAFF_MANAGE)
-  async create(@Body() data: Record<string, unknown>) {
+  async create(@Body() data: CreateStaffDto) {
     return this.staffService.create(data);
   }
 
   @Patch(':id/role')
   @RequirePermissions(Permission.STAFF_MANAGE)
-  async updateRole(@Param('id') id: string, @Body('role') role: string) {
-    return this.staffService.updateRole(id, role);
+  async updateRole(@Param('id') id: string, @Body() data: UpdateStaffRoleDto) {
+    return this.staffService.updateRole(id, data.role);
+  }
+
+  @Patch(':id/status')
+  @RequirePermissions(Permission.STAFF_MANAGE)
+  async updateStatus(@Param('id') id: string, @Body() data: UpdateStaffStatusDto) {
+    return this.staffService.updateStatus(id, data.isActive);
   }
 }

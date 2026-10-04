@@ -13,6 +13,11 @@ export class UpdateSettingsDto {
   @Max(31)
   cutOffWorkingDays!: number;
 
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  kitchenReadyBufferMinutes!: number;
+
   @IsBoolean()
   mon!: boolean;
   @IsBoolean()

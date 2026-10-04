@@ -8,8 +8,8 @@ import {
 
 const validator = new CombinationValidator();
 const optionGroups = [
-  { id: 'bread', isRequired: true, allowPortions: false, optionIds: ['rice', 'bread'] },
-  { id: 'sauce', isRequired: false, allowPortions: false, optionIds: ['mild', 'hot'] },
+  { id: 'bread', isRequired: true, optionIds: ['rice', 'bread'] },
+  { id: 'sauce', isRequired: false, optionIds: ['mild', 'hot'] },
 ];
 
 function assertCode(run: () => void, code: CombinationErrorCode) {
@@ -127,12 +127,13 @@ test('rejects duplicate selections from the same group', () => {
   );
 });
 
-test('allows duplicate group selections when the group allows portions', () => {
-  assert.doesNotThrow(() =>
+test('does not treat the incomplete legacy portion flag as multiple option selections', () => {
+  assertCode(
+    () =>
     validator.validate({
       lineQuantity: 1,
       optionGroups: [
-        { id: 'toppings', isRequired: true, allowPortions: true, optionIds: ['cheese', 'herbs'] },
+        { id: 'toppings', isRequired: true, optionIds: ['cheese', 'herbs'] },
       ],
       combinations: [
         {
@@ -144,6 +145,7 @@ test('allows duplicate group selections when the group allows portions', () => {
         },
       ],
     }),
+    CombinationErrorCode.DUPLICATE_GROUP_SELECTION,
   );
 });
 

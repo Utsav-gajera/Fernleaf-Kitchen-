@@ -1,4 +1,4 @@
-import { PrismaClient, StaffRole } from '@prisma/client';
+import { DropStatus, KitchenUnitStatus, OrderStatus, PrismaClient, StaffRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
@@ -37,12 +37,13 @@ async function main() {
   await seedEmployees({ acmeId: acme.id, greenleafId: greenleaf.id, novaId: nova.id, allergenMap, tagMap });
   const optionData = await seedOptions();
   const { breadGroup, sideGroup, sauceGroup, proteinGroup } = await seedOptionGroups();
-  await seedDishAssignments({ breadGroup, sideGroup, sauceGroup, proteinGroup });
   const { dishData } = await seedDishes({ hotStation, coldStation, grillStation, allergenMap, tagMap });
+  await seedDishAssignments({ breadGroup, sideGroup, sauceGroup, proteinGroup });
   await seedCategories();
   await seedPrices({ dishData, optionData, standardTier, enterpriseTier, partnerTier });
   await seedPlatformSettings();
   await seedHolidays({ greenleafId: greenleaf.id, novaId: nova.id });
+  await seedDemoOrderStatuses();
 
   console.log('\n🎉 Seed complete!');
   console.log('');
@@ -53,6 +54,163 @@ async function main() {
   for (const s of staffUsers) {
     const pad = (str: string, len: number) => str.padEnd(len);
     console.log(`  │ ${pad(s.email, 23)} │ Test@1234 │ ${pad(s.role, 8)} │`);
+  }
+
+  async function seedDemoOrderStatuses() {
+    const statuses: OrderStatus[] = [
+      OrderStatus.DRAFT,
+      OrderStatus.PLACED,
+      OrderStatus.CONFIRMED,
+      OrderStatus.KITCHEN_IN_PROGRESS,
+      OrderStatus.KITCHEN_READY,
+      OrderStatus.DISPATCH_READY,
+      OrderStatus.OUT_FOR_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.CANCELLED,
+      OrderStatus.REJECTED,
+    ];
+    const nonBillableStatuses = new Set<OrderStatus>([
+      OrderStatus.DRAFT,
+      OrderStatus.PLACED,
+      OrderStatus.CANCELLED,
+      OrderStatus.REJECTED,
+    ]);
+    const todayKey = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const today = new Date(`${todayKey}T00:00:00.000Z`);
+    const offsetsByStatus: Record<OrderStatus, number> = {
+      [OrderStatus.DRAFT]: 5,
+      [OrderStatus.PLACED]: 4,
+      [OrderStatus.CONFIRMED]: 3,
+      [OrderStatus.KITCHEN_IN_PROGRESS]: 1,
+      [OrderStatus.KITCHEN_READY]: 0,
+      [OrderStatus.DISPATCH_READY]: 0,
+      [OrderStatus.OUT_FOR_DELIVERY]: 0,
+      [OrderStatus.DELIVERED]: -1,
+      [OrderStatus.CANCELLED]: -3,
+      [OrderStatus.REJECTED]: -2,
+    };
+
+    for (const status of statuses) {
+      const id = `demo-status-${status.toLowerCase().replace(/_/g, '-')}`;
+      const deliveryDate = new Date(today);
+      deliveryDate.setUTCDate(today.getUTCDate() + offsetsByStatus[status]);
+      const order = await prisma.order.upsert({
+        where: { id },
+        update: {
+          status,
+          billable: !nonBillableStatuses.has(status),
+          invoiced: false,
+          deliveryDate,
+          deliveryTime: '12:00',
+          totalMinor: 1800,
+          subtotalMinor: 1800,
+        },
+        create: {
+          id,
+          companyId: 'company-acme-001',
+          employeeId: 'emp-acme-001',
+          status,
+          billable: !nonBillableStatuses.has(status),
+          deliveryDate,
+          deliveryTime: '12:00',
+          addressLine1: 'Demo Kitchen Address',
+          city: 'Surat',
+          postalCode: '395006',
+          packaging: 'STANDARD',
+          subtotalMinor: 1800,
+          totalMinor: 1800,
+        },
+      });
+      const line = await prisma.orderLine.upsert({
+        where: { id: `${id}-line` },
+        update: { orderId: order.id, dishId: 'dish-butter-chicken', dishNameSnapshot: 'Butter Chicken', skuSnapshot: 'HOT-001', dishUnitPriceMinor: 1800, quantity: 1, totalMinor: 1800 },
+        create: { id: `${id}-line`, orderId: order.id, dishId: 'dish-butter-chicken', dishNameSnapshot: 'Butter Chicken', skuSnapshot: 'HOT-001', dishUnitPriceMinor: 1800, quantity: 1, totalMinor: 1800 },
+      });
+      const combination = await prisma.orderCombination.upsert({
+        where: { id: `${id}-combination` },
+        update: { orderLineId: line.id, quantity: 1, totalMinor: 1800 },
+        create: { id: `${id}-combination`, orderLineId: line.id, optionGroupNameSnapshot: 'Standard preparation', quantity: 1, totalMinor: 1800 },
+      });
+      await prisma.orderTimelineEvent.upsert({
+        where: { id: `${id}-event` },
+        update: { status },
+        create: { id: `${id}-event`, orderId: order.id, status, note: 'Seeded demonstration order status' },
+      });
+      if (
+        status === OrderStatus.CONFIRMED
+        || status === OrderStatus.KITCHEN_IN_PROGRESS
+        || status === OrderStatus.KITCHEN_READY
+      ) {
+        const unitStatus = status === OrderStatus.CONFIRMED
+          ? KitchenUnitStatus.PENDING
+          : status === OrderStatus.KITCHEN_IN_PROGRESS
+            ? KitchenUnitStatus.STARTED
+            : KitchenUnitStatus.DONE;
+        const deliveryAt = new Date(`${deliveryDate.toISOString().slice(0, 10)}T12:00:00.000Z`);
+        await prisma.kitchenUnit.upsert({
+          where: { combinationId: combination.id },
+          update: { status: unitStatus },
+          create: {
+            orderId: order.id,
+            combinationId: combination.id,
+            stationId: hotStation.id,
+            stationNameSnapshot: 'Hot Kitchen',
+            dishNameSnapshot: 'Butter Chicken',
+            skuSnapshot: 'HOT-001',
+            optionsSnapshot: '[]',
+            quantity: 1,
+            status: unitStatus,
+            plannedDispatchAt: new Date(deliveryAt.getTime() - 60 * 60_000),
+            plannedKitchenReadyAt: new Date(deliveryAt.getTime() - 90 * 60_000),
+            startedAt: unitStatus === KitchenUnitStatus.PENDING ? null : new Date(),
+            completedAt: unitStatus === KitchenUnitStatus.DONE ? new Date() : null,
+          },
+        });
+      }
+      const dropStatus = status === OrderStatus.KITCHEN_READY ? DropStatus.KITCHEN_READY
+        : status === OrderStatus.DISPATCH_READY ? DropStatus.DISPATCH_READY
+          : status === OrderStatus.OUT_FOR_DELIVERY ? DropStatus.OUT_FOR_DELIVERY
+            : status === OrderStatus.DELIVERED ? DropStatus.DELIVERED
+              : null;
+      if (dropStatus) {
+        const drop = await prisma.drop.upsert({
+          where: { groupingKey: `demo-drop-${id}` },
+          update: {
+            companyId: order.companyId,
+            driverId,
+            status: dropStatus,
+            addressLine1: 'Demo Kitchen Address',
+            city: 'Surat',
+            postalCode: '395006',
+            deliveryTime: '12:00',
+            deliveryAt: new Date(`${deliveryDate.toISOString().slice(0, 10)}T12:00:00.000Z`),
+            deliveredAt: dropStatus === DropStatus.DELIVERED ? new Date(`${deliveryDate.toISOString().slice(0, 10)}T11:55:00.000Z`) : null,
+            onTime: dropStatus === DropStatus.DELIVERED ? true : null,
+          },
+          create: {
+            groupingKey: `demo-drop-${id}`,
+            companyId: order.companyId,
+            driverId,
+            status: dropStatus,
+            addressLine1: 'Demo Kitchen Address',
+            city: 'Surat',
+            postalCode: '395006',
+            deliveryTime: '12:00',
+            deliveryAt: new Date(`${deliveryDate.toISOString().slice(0, 10)}T12:00:00.000Z`),
+            deliveredAt: dropStatus === DropStatus.DELIVERED ? new Date(`${deliveryDate.toISOString().slice(0, 10)}T11:55:00.000Z`) : null,
+            onTime: dropStatus === DropStatus.DELIVERED ? true : null,
+          },
+        });
+        await prisma.dropOrder.upsert({
+          where: { orderId: order.id },
+          update: { dropId: drop.id },
+          create: { dropId: drop.id, orderId: order.id },
+        });
+      }
+    }
+    console.log('  ✅ Demonstration orders seeded across every workflow status');
   }
   console.log('  └─────────────────────────┴───────────┴──────────┘');
   console.log(`\n  Companies : Acme Corp · Greenleaf Studios · Nova Health Partners`);
@@ -433,23 +591,23 @@ async function seedOptionGroups() {
   const ogOptionData = [
     { id: 'ogo-bread-white', optionGroupId: breadGroup.id, optionId: 'opt-bread-white', displayOrder: 1, extraChargeMinor: 0 },
     { id: 'ogo-bread-whole', optionGroupId: breadGroup.id, optionId: 'opt-bread-whole', displayOrder: 2, extraChargeMinor: 0 },
-    { id: 'ogo-bread-gf', optionGroupId: breadGroup.id, optionId: 'opt-bread-gf', displayOrder: 3, extraChargeMinor: 50 },
+    { id: 'ogo-bread-gf', optionGroupId: breadGroup.id, optionId: 'opt-bread-gf', displayOrder: 3, extraChargeMinor: 0 },
     { id: 'ogo-side-salad', optionGroupId: sideGroup.id, optionId: 'opt-side-salad', displayOrder: 1, extraChargeMinor: 0 },
-    { id: 'ogo-side-fries', optionGroupId: sideGroup.id, optionId: 'opt-side-fries', displayOrder: 2, extraChargeMinor: 100 },
+    { id: 'ogo-side-fries', optionGroupId: sideGroup.id, optionId: 'opt-side-fries', displayOrder: 2, extraChargeMinor: 0 },
     { id: 'ogo-side-fruit', optionGroupId: sideGroup.id, optionId: 'opt-side-fruit', displayOrder: 3, extraChargeMinor: 0 },
     { id: 'ogo-sauce-chilli', optionGroupId: sauceGroup.id, optionId: 'opt-sauce-chilli', displayOrder: 1, extraChargeMinor: 0 },
     { id: 'ogo-sauce-mayo', optionGroupId: sauceGroup.id, optionId: 'opt-sauce-mayo', displayOrder: 2, extraChargeMinor: 0 },
     { id: 'ogo-sauce-vegan-mayo', optionGroupId: sauceGroup.id, optionId: 'opt-sauce-vegan-mayo', displayOrder: 3, extraChargeMinor: 0 },
-    { id: 'ogo-protein-chicken', optionGroupId: proteinGroup.id, optionId: 'opt-protein-chicken', displayOrder: 1, extraChargeMinor: 150 },
-    { id: 'ogo-protein-halloumi', optionGroupId: proteinGroup.id, optionId: 'opt-protein-halloumi', displayOrder: 2, extraChargeMinor: 120 },
-    { id: 'ogo-protein-falafel', optionGroupId: proteinGroup.id, optionId: 'opt-protein-falafel', displayOrder: 3, extraChargeMinor: 100 },
+    { id: 'ogo-protein-chicken', optionGroupId: proteinGroup.id, optionId: 'opt-protein-chicken', displayOrder: 1, extraChargeMinor: 0 },
+    { id: 'ogo-protein-halloumi', optionGroupId: proteinGroup.id, optionId: 'opt-protein-halloumi', displayOrder: 2, extraChargeMinor: 0 },
+    { id: 'ogo-protein-falafel', optionGroupId: proteinGroup.id, optionId: 'opt-protein-falafel', displayOrder: 3, extraChargeMinor: 0 },
   ];
 
   for (const item of ogOptionData) {
     await prisma.optionGroupOption.upsert({
       where: { id: item.id },
-      update: { displayOrder: item.displayOrder, extraChargeMinor: item.extraChargeMinor },
-      create: item,
+      update: { displayOrder: item.displayOrder, extraChargeMinor: 0 },
+      create: { ...item, extraChargeMinor: 0 },
     });
   }
   console.log('  ✅ Option groups seeded');
@@ -626,7 +784,7 @@ async function seedPlatformSettings() {
   await prisma.platformSettings.upsert({
     where: { id: 'default' },
     update: {},
-    create: { id: 'default', kitchenTimeZone: 'Europe/London', cutOffTime: '16:00', cutOffWorkingDays: 2, dispatchLeadMinutes: 60, kitchenReadyBufferMinutes: 30 },
+    create: { id: 'default', kitchenTimeZone: 'Europe/London', cutOffTime: '16:00', cutOffWorkingDays: 2, kitchenReadyBufferMinutes: 30 },
   });
 }
 

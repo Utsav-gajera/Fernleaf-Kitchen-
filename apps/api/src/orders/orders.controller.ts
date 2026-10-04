@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
 import { OrdersService } from './orders.service';
-import { CreateOrderDto, OrderListQueryDto, UpdateOrderDto } from './dto/order.dto';
+import { CorrectOrderTotalDto, CreateOrderDto, OrderListQueryDto, UpdateOrderDto } from './dto/order.dto';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -59,7 +59,16 @@ export class OrdersController {
 
   @Post(':id/force-complete')
   @RequirePermissions(Permission.ORDER_OVERRIDE)
-  forceComplete(@Param('id') id: string, @Req() request: { user: { role: Role } }) {
-    return this.ordersService.forceComplete(id, request.user);
+  forceComplete(@Param('id') id: string) {
+    return this.ordersService.forceComplete(id);
+  }
+
+  @Patch(':id/correct-total')
+  @RequirePermissions(Permission.ORDER_OVERRIDE)
+  correctTotal(
+    @Param('id') id: string,
+    @Body() data: CorrectOrderTotalDto,
+  ) {
+    return this.ordersService.correctTotal(id, data);
   }
 }

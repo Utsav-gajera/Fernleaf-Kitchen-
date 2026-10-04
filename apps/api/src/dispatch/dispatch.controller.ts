@@ -42,7 +42,7 @@ export class DispatchController {
   }
 
   @Post('drops/:id/delivered')
-  @RequirePermissions(Permission.DISPATCH_UPDATE)
+  @RequirePermissions(Permission.ORDER_OVERRIDE)
   markDelivered(@Param('id') dropId: string) {
     return this.dispatchService.markDelivered(dropId);
   }

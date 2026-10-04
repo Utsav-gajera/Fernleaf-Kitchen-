@@ -3,10 +3,77 @@
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
+import { apiRequest } from '../../lib/api';
 import { ShieldCheck, User as UserIcon, LogOut, Lock, Sparkles } from 'lucide-react';
+
+type DashboardData = {
+  date: string;
+  metrics: Record<string, number | string | null | { id: string; deliveryAt: string; deliveryTime: string; addressLine1: string; city: string; postalCode: string }>;
+};
+
+function MetricCards({ data, role }: { data: DashboardData; role: string }) {
+  const definitions: Record<string, Array<[string, string]>> = {
+    ADMIN: [
+      ['todaysOrders', "Today's orders"],
+      ['todaysConfirmedValueMinor', "Today's confirmed value"],
+      ['uninvoicedOrders', 'Uninvoiced orders'],
+      ['lateDeliveries', 'Late deliveries'],
+      ['ordersRequiringAttention', 'Orders requiring attention'],
+    ],
+    KITCHEN: [
+      ['pendingUnits', 'Pending units'],
+      ['inProgress', 'In progress'],
+      ['doneUnits', 'Done'],
+      ['atRiskUnits', 'At risk'],
+      ['lateUnits', 'Late'],
+    ],
+    DISPATCH: [
+      ['kitchenReady', 'Kitchen ready'],
+      ['waitingForDriver', 'Waiting for driver'],
+      ['dispatchReady', 'Dispatch ready'],
+      ['outForDelivery', 'Out for delivery'],
+      ['lateDrops', 'Late'],
+    ],
+    DRIVER: [
+      ['nextDrop', 'Next drop'],
+      ['remainingDrops', 'Remaining drops'],
+      ['completedDrops', 'Completed'],
+    ],
+  };
+  const cards = definitions[role] ?? [];
+  return (
+    <section style={{ marginBottom: '2rem' }}>
+      <h2 style={{ fontSize: '1.2rem', marginBottom: '0.8rem' }}>Today&apos;s operations</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.8rem' }}>
+        {cards.map(([key, label]) => {
+          const value = data.metrics[key];
+          let display: string | number = value as string | number;
+          if (key === 'todaysConfirmedValueMinor' && typeof value === 'number') {
+            display = `$${(value / 100).toFixed(2)}`;
+          } else if (key === 'nextDrop' && value && typeof value === 'object') {
+            display = `${value.deliveryTime} · ${value.addressLine1}, ${value.city}`;
+          } else if (value === null) {
+            display = 'None';
+          }
+          return <div className="glass-panel" key={key} style={{ padding: '1rem' }}><div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{label}</div><div style={{ fontWeight: 700, fontSize: key === 'nextDrop' ? '1rem' : '1.6rem', marginTop: '0.35rem' }}>{display}</div></div>;
+        })}
+      </div>
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '0.6rem' }}>Kitchen-local date: {data.date}</div>
+    </section>
+  );
+}
 
 export default function DashboardPage() {
   const { user, isLoading, logout, isAdmin } = useAuth();
+  const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
+  const [dashboardError, setDashboardError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!user) return;
+    apiRequest<DashboardData>('/dashboard')
+      .then(setDashboard)
+      .catch((error) => setDashboardError(error instanceof Error ? error.message : 'Unable to load dashboard.'));
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -29,14 +96,11 @@ export default function DashboardPage() {
           <Lock size={40} color="var(--rose)" style={{ marginBottom: '1rem' }} />
           <h2 style={{ fontSize: '1.5rem', marginBottom: '0.8rem' }}>Authentication Required</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.95rem' }}>
-            Please log in or register an account to view this dashboard.
+            Please log in to view this dashboard. Staff accounts are created by administrators.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
             <Link href="/login" className="btn-primary" id="dashboard-login-redirect-btn">
               Go to Login
-            </Link>
-            <Link href="/register" className="btn-secondary">
-              Register
             </Link>
           </div>
         </div>
@@ -116,10 +180,13 @@ export default function DashboardPage() {
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>
           {isAdmin
-            ? 'You have administrative access. You can manage users and access all protected resources.'
+            ? 'You have administrative access to management and operational workspaces. Driver self-service remains scoped to the assigned driver.'
             : "You're signed in with a standard account. Explore your personalized content below."}
         </p>
       </div>
+
+      {dashboardError && <p style={{ color: '#fb7185' }}>{dashboardError}</p>}
+      {dashboard && <MetricCards data={dashboard} role={user.role} />}
 
       {isAdmin && (
         <div
@@ -153,6 +220,14 @@ export default function DashboardPage() {
           <Link href="/dashboard/orders" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
             <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Orders</div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Create, edit, place, cancel, and review employee order timelines.</div>
+          </Link>
+          <Link href="/dashboard/kitchen" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Kitchen</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Review prep units and kitchen readiness.</div>
+          </Link>
+          <Link href="/dashboard/staff" className="glass-panel" style={{ padding: '1.2rem 1.1rem', textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>Staff</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Create staff accounts, assign roles, and manage account activation.</div>
           </Link>
         </div>
       )}

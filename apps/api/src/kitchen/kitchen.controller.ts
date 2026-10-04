@@ -3,13 +3,10 @@ import { KitchenService } from './kitchen.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
-import { Roles } from '../authorization/decorators/roles.decorator';
-import { RolesGuard } from '../authorization/guards/roles.guard';
-import { Permission, Role } from '@project/shared';
+import { Permission } from '@project/shared';
 
 @Controller('kitchen')
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
-@Roles(Role.KITCHEN)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class KitchenController {
   constructor(private readonly kitchenService: KitchenService) {}
 
@@ -34,8 +31,7 @@ export class KitchenController {
 }
 
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
-@Roles(Role.KITCHEN)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class KitchenBoardController {
   constructor(private readonly kitchenService: KitchenService) {}
 

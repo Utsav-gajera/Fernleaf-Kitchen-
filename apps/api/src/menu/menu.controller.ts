@@ -11,15 +11,24 @@ export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
   @Get('preview')
-  @RequirePermissions(Permission.ORDER_VIEW)
+  @RequirePermissions(Permission.ORDER_CREATE)
   async getMenuPreview(@Query('employeeId') employeeId: string) {
     return this.menuService.getMenuForEmployee(employeeId);
   }
 
   @Get('employee/:employeeId')
-  @RequirePermissions(Permission.ORDER_VIEW)
+  @RequirePermissions(Permission.ORDER_CREATE)
   async getEmployeeMenu(@Param('employeeId') employeeId: string) {
     return this.menuService.getMenuForEmployee(employeeId);
+  }
+
+  @Get('employee/:employeeId/categories/:categoryId')
+  @RequirePermissions(Permission.ORDER_CREATE)
+  async getEmployeeMenuCategory(
+    @Param('employeeId') employeeId: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.menuService.getMenuForEmployee(employeeId, categoryId);
   }
 
   @Get('categories')

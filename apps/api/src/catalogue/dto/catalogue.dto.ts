@@ -2,6 +2,7 @@ import { DishTemperature } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayUnique,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -9,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export class DishListQueryDto {
@@ -100,18 +102,26 @@ export class CreateDishDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   allergenIds?: string[];
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   dietaryTagIds?: string[];
 
   @IsOptional()
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DishCategoryAssignmentDto)
   categoryAssignments?: DishCategoryAssignmentDto[];
 
   @IsOptional()
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DishOptionGroupAssignmentDto)
   optionGroups?: DishOptionGroupAssignmentDto[];
 }
 
@@ -138,14 +148,30 @@ export class CreateOptionDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   allergenIds?: string[];
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   dietaryTagIds?: string[];
 }
 
 export class UpdateOptionDto extends CreateOptionDto {}
+
+export class OptionGroupOptionItemDto {
+  @IsString()
+  @IsNotEmpty()
+  optionId!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  displayOrder?: number;
+}
 
 export class CreateOptionGroupDto {
   @IsString()
@@ -157,16 +183,10 @@ export class CreateOptionGroupDto {
   isRequired?: boolean;
 
   @IsOptional()
-  @IsBoolean()
-  allowPortions?: boolean;
-
-  @IsOptional()
   @IsArray()
-  optionIds?: Array<{
-    optionId: string;
-    displayOrder?: number;
-    extraChargeMinor?: number;
-  }>;
+  @ValidateNested({ each: true })
+  @Type(() => OptionGroupOptionItemDto)
+  optionIds?: OptionGroupOptionItemDto[];
 }
 
 export class UpdateOptionGroupDto extends CreateOptionGroupDto {}
@@ -221,9 +241,7 @@ export class CategoryDishAssignmentBodyDto {
 
 export class OptionGroupOptionSyncDto {
   @IsArray()
-  items!: Array<{
-    optionId: string;
-    displayOrder?: number;
-    extraChargeMinor?: number;
-  }>;
+  @ValidateNested({ each: true })
+  @Type(() => OptionGroupOptionItemDto)
+  items!: OptionGroupOptionItemDto[];
 }

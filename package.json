@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Kitchen Operations Admin Panel Monorepo",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -15,6 +18,11 @@
     "build:api": "npm --prefix apps/api run build",
     "build:web": "npm --prefix apps/web run build",
     "build": "npm run build:shared && npm run build:api && npm run build:web",
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
+    "test": "npm --prefix apps/api test",
+    "db:generate": "npm --prefix apps/api run prisma:generate",
+    "db:push": "npm --prefix apps/api run prisma:push",
+    "db:seed": "npm --prefix apps/api run prisma:seed",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\""

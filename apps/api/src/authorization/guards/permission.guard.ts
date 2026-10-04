@@ -3,7 +3,6 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Permission, Role } from '@project/shared';
@@ -14,7 +13,7 @@ import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @Optional() private readonly authorizationService?: AuthorizationService,
+    private readonly authorizationService: AuthorizationService,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -32,8 +31,7 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('Access denied: no user role found');
     }
 
-    const authService = this.authorizationService ?? new AuthorizationService();
-    const permissions = authService.getPermissionsForRole(user.role as Role);
+    const permissions = this.authorizationService.getPermissionsForRole(user.role as Role);
     const missingPermissions = requiredPermissions.filter(
       (permission) => !permissions.includes(permission),
     );

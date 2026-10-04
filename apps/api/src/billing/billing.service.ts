@@ -33,6 +33,9 @@ export class BillingService {
 
   async createInvoice(companyId: string, orderIds: string[]) {
     const uniqueOrderIds = [...new Set(orderIds)];
+    if (uniqueOrderIds.length === 0) {
+      throw new BadRequestException('Select at least one order to create an invoice.');
+    }
     if (uniqueOrderIds.length !== orderIds.length) {
       throw new BadRequestException('An invoice cannot contain the same order more than once.');
     }
@@ -125,5 +128,34 @@ export class BillingService {
       throw new BadRequestException('Paid invoices are financially immutable.');
     }
     return this.getInvoice(invoiceId);
+  }
+
+  async removeOrder(invoiceId: string, orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findUnique({
+        where: { id: invoiceId },
+        include: { orders: { select: { id: true, orderId: true, totalMinor: true } } },
+      });
+      if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} was not found.`);
+      if (invoice.status === InvoiceStatus.PAID) {
+        throw new BadRequestException('Paid invoices are financially immutable.');
+      }
+      const item = invoice.orders.find((entry) => entry.orderId === orderId);
+      if (!item) throw new NotFoundException(`Order ${orderId} is not on this invoice.`);
+      await tx.invoiceOrder.delete({ where: { id: item.id } });
+      await tx.order.update({ where: { id: orderId }, data: { invoiced: false } });
+      if (invoice.orders.length === 1) {
+        await tx.invoice.delete({ where: { id: invoiceId } });
+        return { id: invoiceId, deleted: true, orders: [] };
+      }
+      const nextTotal = invoice.orders
+        .filter((entry) => entry.id !== item.id)
+        .reduce((sum, entry) => sum + entry.totalMinor, 0);
+      return tx.invoice.update({
+        where: { id: invoiceId },
+        data: { totalMinor: nextTotal },
+        include: { orders: { include: { order: { select: { id: true, totalMinor: true, status: true } } } } },
+      });
+    });
   }
 }

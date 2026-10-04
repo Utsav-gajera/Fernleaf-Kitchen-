@@ -54,9 +54,6 @@ export default function HomePage() {
                 <span>Sign In</span>
                 <ArrowRight size={18} />
               </Link>
-              <Link href="/register" className="btn-secondary" id="hero-register-btn">
-                <span>Create Account</span>
-              </Link>
             </>
           )}
         </div>

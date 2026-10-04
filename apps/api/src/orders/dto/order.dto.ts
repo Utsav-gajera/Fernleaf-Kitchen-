@@ -10,7 +10,9 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -86,6 +88,7 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   deliveryTime?: string;
 
   @IsOptional()
@@ -95,6 +98,7 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   packaging?: string;
 
   @IsArray()
@@ -116,6 +120,7 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   deliveryTime?: string;
 
   @IsOptional()
@@ -125,6 +130,7 @@ export class UpdateOrderDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   packaging?: string;
 
   @IsOptional()
@@ -133,6 +139,18 @@ export class UpdateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => OrderLineDto)
   lines?: OrderLineDto[];
+}
+
+export class CorrectOrderTotalDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  correctedTotalMinor!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
 }
 
 export class OrderListQueryDto {
@@ -165,6 +183,10 @@ export class OrderListQueryDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @Transform(({ value }) =>

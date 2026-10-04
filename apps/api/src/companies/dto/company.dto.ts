@@ -1,13 +1,16 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayMinSize,
   IsBoolean,
   IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 
@@ -60,6 +63,7 @@ export class CompanyAddressDto {
 export class CompanyHolidayDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   date!: string;
 
   @IsString()
@@ -94,6 +98,7 @@ export class CreateCompanyDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   defaultDeliveryTime?: string;
 
   @IsOptional()
@@ -142,16 +147,21 @@ export class CreateCompanyDto {
   @IsBoolean()
   sun?: boolean;
 
-  @IsOptional()
   @IsArray()
-  domains?: string[];
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  domains!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CompanyAddressDto)
+  addresses!: CompanyAddressDto[];
 
   @IsOptional()
   @IsArray()
-  addresses?: CompanyAddressDto[];
-
-  @IsOptional()
-  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CompanyHolidayDto)
   holidays?: CompanyHolidayDto[];
 
   @IsOptional()
@@ -164,6 +174,7 @@ export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {}
 export class UpdateCompanyDefaultsDto {
   @IsOptional()
   @IsString()
+  @Matches(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   defaultDeliveryTime?: string;
 
   @IsOptional()

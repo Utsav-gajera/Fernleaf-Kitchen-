@@ -82,15 +82,13 @@ export class MenuService {
               return null;
             }
 
-            const extraChargeMinor = groupOption.extraChargeMinor;
             return {
               id: groupOption.option.id,
               name: groupOption.option.name,
               description: groupOption.option.description ?? null,
               priceMinor: pricing.priceMinor,
               price: pricing.price,
-              extraChargeMinor,
-              effectivePriceMinor: pricing.priceMinor + extraChargeMinor,
+              effectivePriceMinor: pricing.priceMinor,
             };
           }),
         );
@@ -108,7 +106,6 @@ export class MenuService {
           isRequired:
             dishOptionGroup.isRequiredOverride ??
             dishOptionGroup.optionGroup.isRequired,
-          allowPortions: dishOptionGroup.optionGroup.allowPortions,
           displayOrder: dishOptionGroup.displayOrder,
           options: resolvedOptions,
         };
@@ -174,7 +171,7 @@ export class MenuService {
     };
   }
 
-  async getMenuForEmployee(employeeId: string) {
+  async getMenuForEmployee(employeeId: string, categoryId?: string) {
     const employee = await this.findEmployeeContext(employeeId);
     const hiddenCategoryIds = new Set(
       employee.company.hiddenCategories.map(({ categoryId }) => categoryId),
@@ -186,6 +183,7 @@ export class MenuService {
     const assignments = await this.prisma.categoryDish.findMany({
       where: {
         isActive: true,
+        categoryId,
         category: { isActive: true },
         dish: { isActive: true },
       },
@@ -230,7 +228,7 @@ export class MenuService {
       const category = assignment.category;
       if (
         !this.activeCategoryPolicy.isSatisfiedBy(category) ||
-        !this.publicCategoryPolicy.isSatisfiedBy(category) ||
+        (!categoryId && !this.publicCategoryPolicy.isSatisfiedBy(category)) ||
         !this.companyVisibilityPolicy.isCategoryVisible(
           category.id,
           hiddenCategoryIds,

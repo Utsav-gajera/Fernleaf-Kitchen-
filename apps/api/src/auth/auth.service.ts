@@ -1,10 +1,9 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { StaffRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -14,42 +13,8 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.staffUser.findUnique({
-      where: { email: dto.email.toLowerCase() },
-    });
-
-    if (existing) {
-      throw new ConflictException('A user with this email already exists');
-    }
-
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const assignedRole = (dto.role && Object.values(StaffRole).includes(dto.role as StaffRole))
-      ? (dto.role as StaffRole)
-      : StaffRole.ADMIN;
-
-    const user = await this.prisma.staffUser.create({
-      data: {
-        email: dto.email.toLowerCase(),
-        password: hashedPassword,
-        name: dto.name || dto.email.split('@')[0],
-        role: assignedRole,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-
-    const token = this.generateToken(user.id, user.email, user.role);
-
-    return {
-      message: 'User registered successfully',
-      user,
-      accessToken: token,
-    };
+    void dto;
+    throw new ForbiddenException('Public registration is disabled. An administrator must create staff accounts.');
   }
 
   async login(dto: LoginDto) {
@@ -57,7 +22,7 @@ export class AuthService {
       where: { email: dto.email.toLowerCase() },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid email or password');
     }
 

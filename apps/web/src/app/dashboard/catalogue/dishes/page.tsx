@@ -20,7 +20,7 @@ type Dish = {
   categories?: { category: { id: string; name: string }; displayOrder: number; isActive: boolean }[];
   optionGroups?: {
     displayOrder: number;
-    optionGroup: { id: string; name: string; isRequired: boolean; allowPortions: boolean };
+    optionGroup: { id: string; name: string; isRequired: boolean };
   }[];
 };
 

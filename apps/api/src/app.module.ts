@@ -1,4 +1,4 @@
-import { Module, Get, Controller } from '@nestjs/common';
+import { Module, Get, Controller, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
@@ -41,13 +41,12 @@ class AppController {
         timestamp: new Date().toISOString(),
       };
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown database error';
-      return {
+      void error;
+      throw new ServiceUnavailableException({
         status: 'degraded',
         database: 'disconnected',
-        error: errorMessage,
         timestamp: new Date().toISOString(),
-      };
+      });
     }
   }
 }

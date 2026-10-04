@@ -32,12 +32,11 @@ type KitchenUnit = {
 };
 type KitchenStation = { id: string; name: string };
 
-const today = () => new Date().toISOString().slice(0, 10);
 const formatTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export default function KitchenPage() {
   const { user } = useAuth();
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState('');
   const [station, setStation] = useState('');
   const [units, setUnits] = useState<KitchenUnit[]>([]);
   const [stations, setStations] = useState<KitchenStation[]>([]);
@@ -65,8 +64,15 @@ export default function KitchenPage() {
   }, [date, station]);
 
   useEffect(() => {
-    if (user) void loadBoard();
-  }, [user, loadBoard]);
+    if (!user) return;
+    void apiRequest<{ date?: string }>('/dashboard')
+      .then((dashboard) => setDate(dashboard.date ?? ''))
+      .catch((error) => setMessage(error instanceof Error ? error.message : 'Unable to determine kitchen date.'));
+  }, [user]);
+
+  useEffect(() => {
+    if (user && date) void loadBoard();
+  }, [user, date, loadBoard]);
 
   const columns = ['PENDING', 'STARTED', 'DONE'] as const;
 
@@ -139,7 +145,7 @@ export default function KitchenPage() {
                       {unit.stationNameSnapshot || 'Unassigned'} · Qty {unit.quantity} · {unit.skuSnapshot}
                     </div>
                     <div className="text-muted" style={{ fontSize: '0.85rem', marginTop: 5 }}>
-                      Order {unit.orderId.slice(0, 8)} · Ready by {formatTime(unit.plannedKitchenReadyAt)}
+                      Order {unit.orderId.slice(0, 8)} · Ready by {formatTime(unit.plannedKitchenReadyAt)} · Dispatch by {formatTime(unit.plannedDispatchAt)}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                       {unit.status === 'PENDING' && (

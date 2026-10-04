@@ -103,9 +103,11 @@ export class CutoffProcessor {
   }
 
   private deliveryDateRange(date: Date, timeZone: string): { gte: Date; lt: Date } {
+    void timeZone;
+    const start = new Date(`${this.toDateKey(date)}T00:00:00.000Z`);
     return {
-      gte: this.localDateTimeToInstant(this.toDateKey(date), '00:00', timeZone),
-      lt: this.localDateTimeToInstant(this.toDateKey(date), '00:00', timeZone, 1),
+      gte: start,
+      lt: new Date(start.getTime() + 86_400_000),
     };
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Permission } from '@project/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
@@ -35,5 +35,10 @@ export class BillingController {
   @Post('invoices/:id/paid')
   markAsPaid(@Param('id') invoiceId: string) {
     return this.billingService.markAsPaid(invoiceId);
+  }
+
+  @Delete('invoices/:id/orders/:orderId')
+  removeOrder(@Param('id') invoiceId: string, @Param('orderId') orderId: string) {
+    return this.billingService.removeOrder(invoiceId, orderId);
   }
 }

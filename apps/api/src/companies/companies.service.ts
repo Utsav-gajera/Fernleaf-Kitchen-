@@ -17,7 +17,10 @@ import { UpdateCompanyMenuVisibilityDto } from './dto/company-menu-visibility.dt
 
 @Injectable()
 export class CompaniesService {
-  private readonly publicDomains = new Set(['gmail.com', 'yahoo.com', 'outlook.com']);
+  private readonly publicDomains = new Set([
+    'gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+    'live.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com',
+  ]);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -43,7 +46,7 @@ export class CompaniesService {
   private validateDomain(domain: string) {
     const normalized = this.normalizeDomain(domain);
 
-    if (!normalized || normalized.startsWith('@')) {
+    if (!/^(?!-)(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(normalized)) {
       throw new BadRequestException('A valid domain is required.');
     }
 
@@ -77,9 +80,12 @@ export class CompaniesService {
 
   private async ensureDriverExists(id?: string) {
     if (!id) return;
-    const driver = await this.prisma.staffUser.findUnique({ where: { id } });
-    if (driver?.role !== 'DRIVER') {
-      throw new BadRequestException(`Default driver ${id} must be a valid driver account.`);
+    const driver = await this.prisma.staffUser.findUnique({
+      where: { id },
+      select: { role: true, isActive: true },
+    });
+    if (driver?.role !== 'DRIVER' || !driver.isActive) {
+      throw new BadRequestException(`Default driver ${id} must be an active driver account.`);
     }
   }
 
@@ -156,9 +162,18 @@ export class CompaniesService {
       await this.ensureDriverExists(data.defaultDriverId);
     }
 
-    if (Array.isArray(data.domains) && data.domains.length > 0) {
-      await this.ensureNoDomainConflict(data.domains);
-    }
+    await this.ensureNoDomainConflict(data.domains);
+    const domains = data.domains.map((domain) => this.validateDomain(domain));
+    const requestedDefaultIndex = data.addresses.findIndex((address) => address.isDefault);
+    const defaultAddressIndex = requestedDefaultIndex >= 0 ? requestedDefaultIndex : 0;
+    const addresses = data.addresses.map((address, index) => ({
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      postalCode: address.postalCode,
+      instructions: address.instructions,
+      isDefault: index === defaultAddressIndex,
+    }));
 
     const company = await this.prisma.company.create({
       data: {
@@ -171,7 +186,9 @@ export class CompaniesService {
         deliveryLeadMinutes: data.deliveryLeadMinutes ?? 60,
         defaultPackaging: data.defaultPackaging ?? 'STANDARD',
         standingInstructions: data.standingInstructions,
-        defaultDriverId: data.defaultDriverId,
+        defaultDriverId: data.defaultDriverId !== undefined
+          ? data.defaultDriverId || null
+          : undefined,
         mon: data.mon ?? true,
         tue: data.tue ?? true,
         wed: data.wed ?? true,
@@ -180,27 +197,19 @@ export class CompaniesService {
         sat: data.sat ?? false,
         sun: data.sun ?? false,
         isActive: data.isActive ?? true,
+        domains: { create: domains.map((domain) => ({ domain })) },
+        addresses: { create: addresses },
+        holidays: data.holidays?.length
+          ? {
+              create: data.holidays.map((holiday) => ({
+                date: this.parseDateOnly(holiday.date),
+                name: holiday.name,
+              })),
+            }
+          : undefined,
       },
       include: this.companyInclude,
     });
-
-    if (Array.isArray(data.domains)) {
-      for (const domain of data.domains) {
-        await this.addDomain(company.id, domain);
-      }
-    }
-
-    if (Array.isArray(data.addresses)) {
-      for (const address of data.addresses) {
-        await this.addAddress(company.id, address);
-      }
-    }
-
-    if (Array.isArray(data.holidays)) {
-      for (const holiday of data.holidays) {
-        await this.addHoliday(company.id, holiday);
-      }
-    }
 
     return this.ensureCompany(company.id);
   }
@@ -220,33 +229,49 @@ export class CompaniesService {
       await this.ensureOwnerBelongsToCompany(id, data.ownerId);
     }
 
-    const updated = await this.prisma.company.update({
-      where: { id },
-      data: {
-        name: data.name,
-        billingContactName: data.billingContactName,
-        billingContactEmail: data.billingContactEmail,
-        billingContactPhone: data.billingContactPhone,
-        ownerId: data.ownerId ?? company.ownerId ?? undefined,
-        priceTierId: data.priceTierId,
-        defaultDeliveryTime: data.defaultDeliveryTime,
-        deliveryLeadMinutes: data.deliveryLeadMinutes,
-        defaultPackaging: data.defaultPackaging,
-        standingInstructions: data.standingInstructions,
-        defaultDriverId: data.defaultDriverId,
-        mon: data.mon,
-        tue: data.tue,
-        wed: data.wed,
-        thu: data.thu,
-        fri: data.fri,
-        sat: data.sat,
-        sun: data.sun,
-        isActive: data.isActive,
-      },
-      include: this.companyInclude,
-    });
+    const normalizedDomains = data.domains
+      ? data.domains.map((domain) => this.validateDomain(domain))
+      : undefined;
+    if (normalizedDomains) {
+      await this.ensureNoDomainConflict(normalizedDomains, id);
+    }
 
-    return updated;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.company.update({
+        where: { id },
+        data: {
+          name: data.name,
+          billingContactName: data.billingContactName,
+          billingContactEmail: data.billingContactEmail,
+          billingContactPhone: data.billingContactPhone,
+          ownerId: data.ownerId ?? company.ownerId ?? undefined,
+          priceTierId: data.priceTierId,
+          defaultDeliveryTime: data.defaultDeliveryTime,
+          deliveryLeadMinutes: data.deliveryLeadMinutes,
+          defaultPackaging: data.defaultPackaging,
+          standingInstructions: data.standingInstructions,
+          defaultDriverId: data.defaultDriverId,
+          mon: data.mon,
+          tue: data.tue,
+          wed: data.wed,
+          thu: data.thu,
+          fri: data.fri,
+          sat: data.sat,
+          sun: data.sun,
+          isActive: data.isActive,
+        },
+      });
+      if (normalizedDomains) {
+        await tx.companyDomain.deleteMany({
+          where: { companyId: id, domain: { notIn: normalizedDomains } },
+        });
+        await tx.companyDomain.createMany({
+          data: normalizedDomains.map((domain) => ({ companyId: id, domain })),
+          skipDuplicates: true,
+        });
+      }
+      return tx.company.findUnique({ where: { id }, include: this.companyInclude });
+    });
   }
 
   async addDomain(companyId: string, domain: string) {
@@ -280,6 +305,10 @@ export class CompaniesService {
 
   async removeDomain(companyId: string, domain: string) {
     const normalized = this.validateDomain(domain);
+    const domainCount = await this.prisma.companyDomain.count({ where: { companyId } });
+    if (domainCount <= 1) {
+      throw new BadRequestException('A company must retain at least one email domain.');
+    }
     const result = await this.prisma.companyDomain.deleteMany({
       where: { companyId, domain: normalized },
     });
@@ -292,7 +321,7 @@ export class CompaniesService {
   }
 
   async addAddress(companyId: string, data: CompanyAddressDto) {
-    await this.ensureCompany(companyId);
+    const company = await this.ensureCompany(companyId);
 
     const payload = {
       companyId,
@@ -301,17 +330,18 @@ export class CompaniesService {
       city: data.city,
       postalCode: data.postalCode,
       instructions: data.instructions,
-      isDefault: data.isDefault ?? false,
+      isDefault: data.isDefault ?? company.addresses.length === 0,
     };
 
-    if (data.isDefault) {
-      await this.prisma.companyAddress.updateMany({
-        where: { companyId },
-        data: { isDefault: false },
-      });
-    }
-
-    return this.prisma.companyAddress.create({ data: payload });
+    return this.prisma.$transaction(async (tx) => {
+      if (data.isDefault) {
+        await tx.companyAddress.updateMany({
+          where: { companyId },
+          data: { isDefault: false },
+        });
+      }
+      return tx.companyAddress.create({ data: payload });
+    });
   }
 
   async updateAddress(companyId: string, addressId: string, data: Partial<CompanyAddressDto>) {
@@ -325,28 +355,33 @@ export class CompaniesService {
       throw new NotFoundException(`Address ${addressId} was not found for this company.`);
     }
 
-    if (data.isDefault) {
-      await this.prisma.companyAddress.updateMany({
-        where: { companyId },
-        data: { isDefault: false },
+    return this.prisma.$transaction(async (tx) => {
+      if (data.isDefault) {
+        await tx.companyAddress.updateMany({
+          where: { companyId },
+          data: { isDefault: false },
+        });
+      }
+      return tx.companyAddress.update({
+        where: { id: addressId },
+        data: {
+          addressLine1: data.addressLine1,
+          addressLine2: data.addressLine2,
+          city: data.city,
+          postalCode: data.postalCode,
+          instructions: data.instructions,
+          isDefault: data.isDefault,
+        },
       });
-    }
-
-    return this.prisma.companyAddress.update({
-      where: { id: addressId },
-      data: {
-        addressLine1: data.addressLine1,
-        addressLine2: data.addressLine2,
-        city: data.city,
-        postalCode: data.postalCode,
-        instructions: data.instructions,
-        isDefault: data.isDefault,
-      },
     });
   }
 
   async deleteAddress(companyId: string, addressId: string) {
-    await this.ensureCompany(companyId);
+    const company = await this.ensureCompany(companyId);
+
+    if (company.addresses.length <= 1) {
+      throw new BadRequestException('A company must retain at least one delivery address.');
+    }
 
     const address = await this.prisma.companyAddress.findFirst({
       where: { id: addressId, companyId },
@@ -356,7 +391,19 @@ export class CompaniesService {
       throw new NotFoundException(`Address ${addressId} was not found for this company.`);
     }
 
-    await this.prisma.companyAddress.delete({ where: { id: addressId } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.companyAddress.delete({ where: { id: addressId } });
+      if (address.isDefault) {
+        const replacement = await tx.companyAddress.findFirst({
+          where: { companyId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true },
+        });
+        if (replacement) {
+          await tx.companyAddress.update({ where: { id: replacement.id }, data: { isDefault: true } });
+        }
+      }
+    });
     return { deleted: true, addressId };
   }
 
@@ -380,11 +427,7 @@ export class CompaniesService {
 
   async addHoliday(companyId: string, data: CompanyHolidayDto) {
     await this.ensureCompany(companyId);
-    const date = new Date(data.date);
-
-    if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException('Holiday date must be a valid ISO date.');
-    }
+    const date = this.parseDateOnly(data.date);
 
     return this.prisma.companyHoliday.upsert({
       where: {
@@ -404,11 +447,7 @@ export class CompaniesService {
 
   async removeHoliday(companyId: string, date: string) {
     await this.ensureCompany(companyId);
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      throw new BadRequestException('Holiday date must be a valid ISO date.');
-    }
+    const parsedDate = this.parseDateOnly(date);
 
     const result = await this.prisma.companyHoliday.deleteMany({
       where: { companyId, date: parsedDate },
@@ -436,6 +475,17 @@ export class CompaniesService {
     });
   }
 
+  private parseDateOnly(value: string): Date {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException('Holiday date must use YYYY-MM-DD format.');
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException('Holiday date must be a valid calendar date.');
+    }
+    return parsed;
+  }
+
   async updatePriceTier(companyId: string, priceTierId: string) {
     await this.ensureCompany(companyId);
     await this.ensurePriceTierExists(priceTierId);
@@ -447,13 +497,13 @@ export class CompaniesService {
     });
   }
 
-  async updateDefaultDriver(companyId: string, defaultDriverId: string) {
+  async updateDefaultDriver(companyId: string, defaultDriverId?: string) {
     await this.ensureCompany(companyId);
     await this.ensureDriverExists(defaultDriverId);
 
     return this.prisma.company.update({
       where: { id: companyId },
-      data: { defaultDriverId },
+      data: { defaultDriverId: defaultDriverId || null },
       include: this.companyInclude,
     });
   }

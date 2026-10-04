@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { LogIn, AlertCircle, ArrowRight } from 'lucide-react';
@@ -135,19 +134,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div
-          style={{
-            marginTop: '1.8rem',
-            textAlign: 'center',
-            fontSize: '0.88rem',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Don&apos;t have an account?{' '}
-          <Link href="/register" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>
-            Register here
-          </Link>
-        </div>
       </div>
     </div>
   );

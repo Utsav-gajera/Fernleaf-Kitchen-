@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayUnique,
   IsBoolean,
   IsEmail,
   IsInt,
@@ -51,10 +52,14 @@ export class CreateEmployeeDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   allergies?: string[];
 
   @IsOptional()
   @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
   dietaryPreferences?: string[];
 }
 

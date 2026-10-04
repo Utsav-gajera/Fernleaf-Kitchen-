@@ -121,7 +121,7 @@ export class CompaniesController {
 
   @Patch(':id/default-driver')
   @RequirePermissions(Permission.COMPANY_MANAGE)
-  async updateDefaultDriver(@Param('id') id: string, @Body('defaultDriverId') defaultDriverId: string) {
+  async updateDefaultDriver(@Param('id') id: string, @Body('defaultDriverId') defaultDriverId?: string) {
     return this.companiesService.updateDefaultDriver(id, defaultDriverId);
   }
 

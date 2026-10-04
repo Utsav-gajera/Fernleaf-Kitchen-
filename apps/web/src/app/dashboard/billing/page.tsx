@@ -95,6 +95,15 @@ export default function BillingPage() {
     }
   };
 
+  const removeOrder = async (invoiceId: string, orderId: string) => {
+    try {
+      await apiRequest(`/invoices/${invoiceId}/orders/${orderId}`, { method: 'DELETE' });
+      await loadInvoices();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to remove order from invoice.');
+    }
+  };
+
   return (
     <main className="container" style={{ paddingBottom: '5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
@@ -134,7 +143,7 @@ export default function BillingPage() {
           {invoices.map((invoice) => (
             <article className="glass-panel" key={invoice.id} style={{ padding: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div><strong>{invoice.company.name}</strong><div className="text-muted">{invoice.id.slice(0, 8)} · {new Date(invoice.createdAt).toLocaleDateString()} · {invoice.orders.length} order(s)</div></div>
+                <div><strong>{invoice.company.name}</strong><div className="text-muted">{invoice.id.slice(0, 8)} · {new Date(invoice.createdAt).toLocaleDateString()} · {invoice.orders.length} order(s)</div><div style={{ display: 'grid', gap: 4, marginTop: 6 }}>{invoice.orders.map(({ order }) => <span className="text-muted" key={order.id}>{order.id.slice(0, 8)} · {money(order.totalMinor)} {invoice.status === 'UNPAID' && <button className="btn-secondary btn-sm" onClick={() => void removeOrder(invoice.id, order.id)}>Remove</button>}</span>)}</div></div>
                 <span className="badge">{invoice.status}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}><strong>{money(invoice.totalMinor)}</strong>{invoice.status === 'UNPAID' && <button className="btn-primary btn-sm" onClick={() => void markPaid(invoice.id)}><Check size={15} /> Mark paid</button>}</div>

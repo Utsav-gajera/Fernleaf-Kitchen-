@@ -31,15 +31,24 @@ export class EmployeesController {
   }
 
   @Get(':id/menu')
-  @RequirePermissions(Permission.ORDER_VIEW)
+  @RequirePermissions(Permission.ORDER_CREATE)
   async getEmployeeMenu(@Param('id') id: string) {
     return this.menuService.getMenuForEmployee(id);
   }
 
   @Get(':id/menu/preview')
-  @RequirePermissions(Permission.ORDER_VIEW)
+  @RequirePermissions(Permission.ORDER_CREATE)
   async previewEmployeeMenu(@Param('id') id: string) {
     return this.menuService.getMenuForEmployee(id);
+  }
+
+  @Get(':id/menu/categories/:categoryId')
+  @RequirePermissions(Permission.ORDER_CREATE)
+  async getEmployeeMenuCategory(
+    @Param('id') id: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.menuService.getMenuForEmployee(id, categoryId);
   }
 
   @Get(':id')

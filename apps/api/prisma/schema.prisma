@@ -277,7 +277,7 @@ model OptionGroup {
   id            String  @id @default(uuid())
   name          String
   isRequired    Boolean @default(false)
-  allowPortions Boolean @default(false)
+  allowPortions Boolean @default(false) // Legacy field retained; portion sizes are intentionally not implemented.
 
   dishes  DishOptionGroup[]
   options OptionGroupOption[]
@@ -447,6 +447,10 @@ model Order {
   deliveryFeeMinor    Int         @default(0)
   taxMinor            Int         @default(0)
   totalMinor          Int         @default(0)
+  plannedDispatchReadyAt DateTime?
+  plannedKitchenReadyAt  DateTime?
+  kitchenStartedAt       DateTime?
+  kitchenReadyAt         DateTime?
   lines          OrderLine[]
   timelineEvents OrderTimelineEvent[]
   kitchenUnits   KitchenUnit[]
@@ -641,7 +645,6 @@ model PlatformSettings {
   fri                       Boolean  @default(true)
   sat                       Boolean  @default(false)
   sun                       Boolean  @default(false)
-  dispatchLeadMinutes       Int      @default(60)
   kitchenReadyBufferMinutes Int      @default(30)
   updatedAt                 DateTime @updatedAt
 

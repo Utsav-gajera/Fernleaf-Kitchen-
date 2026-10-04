@@ -7,10 +7,6 @@ export class KitchenPolicy {
     }
   }
 
-  canForceComplete(isAdmin: boolean): boolean {
-    return isAdmin;
-  }
-
   canTransition(status: KitchenUnitStatus, target: KitchenUnitStatus): boolean {
     return (
       (status === KitchenUnitStatus.PENDING && target === KitchenUnitStatus.STARTED) ||

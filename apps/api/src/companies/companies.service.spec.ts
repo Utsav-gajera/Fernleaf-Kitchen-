@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BadRequestException } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 test('duplicate company domain is rejected before company creation', async () => {
   const prisma = {
@@ -28,10 +29,14 @@ test('duplicate company domain is rejected before company creation', async () =>
     },
   };
 
-  const service = new CompaniesService(prisma as any);
+  const service = new CompaniesService(prisma as unknown as PrismaService);
 
   await assert.rejects(
-    () => service.create({ name: 'My New Company', domains: ['acme.com', 'acme.com'] }),
+    () => service.create({
+      name: 'My New Company',
+      domains: ['acme.com', 'acme.com'],
+      addresses: [{ addressLine1: '1 Test Street', city: 'London', postalCode: 'E1 1AA' }],
+    }),
     (error: unknown) => {
       assert.ok(error instanceof BadRequestException);
       assert.match(String(error.message), /Duplicate domain 'acme.com' in the same request\.|already assigned to another company/);

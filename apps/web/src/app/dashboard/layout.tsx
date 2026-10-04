@@ -5,28 +5,18 @@ import { usePathname } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { Role } from '../../types';
-
-const adminOnly = ['/dashboard/companies', '/dashboard/employees', '/dashboard/catalogue', '/dashboard/pricing', '/dashboard/menu', '/dashboard/billing', '/dashboard/settings'];
-
-function requiredRoles(pathname: string): Role[] | null {
-  if (adminOnly.some((path) => pathname === path || pathname.startsWith(`${path}/`))) return ['ADMIN'];
-  if (pathname === '/dashboard/kitchen' || pathname.startsWith('/dashboard/kitchen/')) return ['KITCHEN'];
-  if (pathname === '/dashboard/dispatch' || pathname.startsWith('/dashboard/dispatch/')) return ['ADMIN', 'DISPATCH'];
-  if (pathname === '/dashboard/driver' || pathname.startsWith('/dashboard/driver/')) return ['DRIVER'];
-  if (pathname === '/dashboard/orders' || pathname.startsWith('/dashboard/orders/')) return ['ADMIN', 'DISPATCH'];
-  return null;
-}
+import { hasCapability, requiredCapability } from '../../lib/access';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
-  const roles = requiredRoles(pathname);
+  const capability = requiredCapability(pathname);
 
   if (isLoading) {
     return <div className="container" style={{ padding: '5rem 1rem', textAlign: 'center' }}>Loading session...</div>;
   }
   if (!user) return <>{children}</>;
-  if (roles && !roles.includes(user.role)) {
+  if (capability && !hasCapability(user.role as Role, capability)) {
     return (
       <main className="container" style={{ padding: '5rem 1rem', textAlign: 'center' }}>
         <Lock size={40} color="var(--rose)" />

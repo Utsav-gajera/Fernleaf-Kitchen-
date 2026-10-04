@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CategoryDishAssignmentBodyDto,
@@ -165,6 +165,7 @@ export class CatalogueService {
   }
 
   async createDish(data: CreateDishDto) {
+    await this.validateDishRelations(data);
     const sku = data.sku?.trim() || `DISH-${Date.now()}`;
     const dish = await this.prisma.dish.create({
       data: {
@@ -186,6 +187,7 @@ export class CatalogueService {
 
   async updateDish(id: string, data: UpdateDishDto) {
     await this.ensureDish(id);
+    await this.validateDishRelations(data);
 
     const updated = await this.prisma.dish.update({
       where: { id },
@@ -249,6 +251,7 @@ export class CatalogueService {
   }
 
   async createOption(data: CreateOptionDto) {
+    await this.validateOptionRelations(data);
     const option = await this.prisma.option.create({
       data: {
         name: data.name,
@@ -281,6 +284,7 @@ export class CatalogueService {
 
   async updateOption(id: string, data: UpdateOptionDto) {
     await this.ensureOption(id);
+    await this.validateOptionRelations(data);
 
     const option = await this.prisma.option.update({
       where: { id },
@@ -360,7 +364,6 @@ export class CatalogueService {
       data: {
         name: data.name,
         isRequired: data.isRequired ?? false,
-        allowPortions: data.allowPortions ?? false,
       },
       include: this.optionGroupInclude,
     });
@@ -380,7 +383,6 @@ export class CatalogueService {
       data: {
         name: data.name,
         isRequired: data.isRequired,
-        allowPortions: data.allowPortions,
       },
     });
 
@@ -393,6 +395,14 @@ export class CatalogueService {
 
   async syncOptionGroupOptions(optionGroupId: string, items: OptionGroupOptionSyncDto['items']) {
     await this.ensureOptionGroup(optionGroupId);
+    const optionIds = items.map(({ optionId }) => optionId);
+    if (new Set(optionIds).size !== optionIds.length) {
+      throw new BadRequestException('An option can appear only once in an option group.');
+    }
+    const validOptions = await this.prisma.option.count({ where: { id: { in: optionIds } } });
+    if (validOptions !== optionIds.length) {
+      throw new BadRequestException('One or more option-group options do not exist.');
+    }
 
     const current = await this.prisma.optionGroupOption.findMany({ where: { optionGroupId } });
     const nextIds = new Set(items.map(({ optionId }) => optionId));
@@ -413,13 +423,13 @@ export class CatalogueService {
         },
         update: {
           displayOrder: item.displayOrder ?? 0,
-          extraChargeMinor: item.extraChargeMinor ?? 0,
+          extraChargeMinor: 0,
         },
         create: {
           optionGroupId,
           optionId: item.optionId,
           displayOrder: item.displayOrder ?? 0,
-          extraChargeMinor: item.extraChargeMinor ?? 0,
+          extraChargeMinor: 0,
         },
       });
     }
@@ -623,6 +633,37 @@ export class CatalogueService {
           },
         });
       }
+    }
+  }
+
+  private async validateDishRelations(data: Partial<CreateDishDto & UpdateDishDto>) {
+    if (data.stationId) await this.ensureKitchenStation(data.stationId);
+    await this.assertIdsExist('allergen', data.allergenIds);
+    await this.assertIdsExist('dietaryTag', data.dietaryTagIds);
+    await this.assertIdsExist('category', data.categoryAssignments?.map((item) => item.categoryId));
+    await this.assertIdsExist('optionGroup', data.optionGroups?.map((item) => item.optionGroupId));
+  }
+
+  private async validateOptionRelations(data: Partial<CreateOptionDto & UpdateOptionDto>) {
+    await this.assertIdsExist('allergen', data.allergenIds);
+    await this.assertIdsExist('dietaryTag', data.dietaryTagIds);
+  }
+
+  private async assertIdsExist(
+    model: 'allergen' | 'dietaryTag' | 'category' | 'optionGroup',
+    ids: string[] | undefined,
+  ) {
+    if (ids === undefined) return;
+    const unique = [...new Set(ids)];
+    if (unique.length !== ids.length) {
+      throw new BadRequestException(`Duplicate ${model} IDs are not allowed.`);
+    }
+    const delegate = this.prisma[model] as unknown as {
+      count(args: { where: { id: { in: string[] } } }): Promise<number>;
+    };
+    const count = await delegate.count({ where: { id: { in: unique } } });
+    if (count !== unique.length) {
+      throw new BadRequestException(`One or more ${model} IDs do not exist.`);
     }
   }
 }

@@ -5,6 +5,7 @@ import { apiRequest } from '../../../lib/api';
 
 type CompanyOption = { id: string; name: string; priceTierId?: string };
 type EmployeeOption = { id: string; name: string; email: string; company?: { id: string; name: string } };
+type CategoryOption = { id: string; name: string; isSecret: boolean };
 type MenuResponse = {
   employeeId: string | null;
   companyId: string;
@@ -43,8 +44,10 @@ type MenuResponse = {
 export default function MenuPreviewPage() {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedSecretCategoryId, setSelectedSecretCategoryId] = useState('');
   const [menu, setMenu] = useState<MenuResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,13 +56,15 @@ export default function MenuPreviewPage() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [companiesResponse, employeesResponse] = await Promise.all([
+        const [companiesResponse, employeesResponse, categoriesResponse] = await Promise.all([
           apiRequest<{ items?: CompanyOption[] }>('/companies?page=1&limit=100'),
           apiRequest<{ items?: EmployeeOption[] }>('/employees?page=1&limit=100'),
+          apiRequest<{ data?: CategoryOption[] }>('/menu/categories'),
         ]);
 
         setCompanies(companiesResponse.items ?? []);
         setEmployees(employeesResponse.items ?? []);
+        setCategories(categoriesResponse.data ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load company or employee data.');
       } finally {
@@ -70,7 +75,7 @@ export default function MenuPreviewPage() {
     loadData();
   }, []);
 
-  const loadMenu = async () => {
+  const loadMenu = async (categoryId?: string) => {
     if (!selectedEmployeeId) {
       setMenu(null);
       return;
@@ -78,7 +83,10 @@ export default function MenuPreviewPage() {
 
     try {
       setError('');
-      const response = await apiRequest<MenuResponse>(`/employees/${selectedEmployeeId}/menu/preview`);
+      const path = categoryId
+        ? `/employees/${selectedEmployeeId}/menu/categories/${categoryId}`
+        : `/employees/${selectedEmployeeId}/menu/preview`;
+      const response = await apiRequest<MenuResponse>(path);
       setMenu(response);
       setSelectedCompanyId(response.companyId ?? selectedCompanyId);
     } catch (err) {
@@ -116,6 +124,7 @@ export default function MenuPreviewPage() {
                 const nextCompanyId = event.target.value;
                 setSelectedCompanyId(nextCompanyId);
                 setSelectedEmployeeId('');
+                setSelectedSecretCategoryId('');
                 setMenu(null);
               }}
               style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', background: 'rgba(15,23,42,0.3)', color: 'white' }}
@@ -131,7 +140,11 @@ export default function MenuPreviewPage() {
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Employee</label>
             <select
               value={selectedEmployeeId}
-              onChange={(event) => setSelectedEmployeeId(event.target.value)}
+              onChange={(event) => {
+                setSelectedEmployeeId(event.target.value);
+                setSelectedSecretCategoryId('');
+                setMenu(null);
+              }}
               disabled={!selectedCompanyId || loading}
               style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', background: 'rgba(15,23,42,0.3)', color: 'white' }}
             >
@@ -144,7 +157,7 @@ export default function MenuPreviewPage() {
 
           <button
             type="button"
-            onClick={loadMenu}
+            onClick={() => loadMenu()}
             disabled={!selectedCompanyId || !selectedEmployeeId || loading}
             style={{
               width: '100%',
@@ -160,6 +173,34 @@ export default function MenuPreviewPage() {
           >
             Search Dishes
           </button>
+
+          {selectedEmployeeId && categories.some((category) => category.isSecret) && (
+            <div style={{ marginTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Direct secret category</label>
+              <select
+                value={selectedSecretCategoryId}
+                onChange={(event) => setSelectedSecretCategoryId(event.target.value)}
+                style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', background: 'rgba(15,23,42,0.3)', color: 'white' }}
+              >
+                <option value="">Choose a secret category</option>
+                {categories.filter((category) => category.isSecret).map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => loadMenu(selectedSecretCategoryId)}
+                disabled={!selectedSecretCategoryId}
+                style={{ width: '100%', marginTop: '0.65rem' }}
+              >
+                Open direct category
+              </button>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.55rem' }}>
+                Secret categories never appear in normal browsing; they require this explicit direct selection.
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="glass-panel" style={{ padding: '1.5rem' }}>

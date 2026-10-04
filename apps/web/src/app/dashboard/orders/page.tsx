@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Eye, Plus, Save, Send, ShoppingBasket, XCircle } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
+import { hasCapability } from '../../../lib/access';
 
 type Company = { id: string; name: string };
 type Employee = {
@@ -17,7 +18,7 @@ type Employee = {
   company?: Company & { mon?: boolean; tue?: boolean; wed?: boolean; thu?: boolean; fri?: boolean; sat?: boolean; sun?: boolean };
 };
 type MenuOption = { id: string; name: string; effectivePriceMinor?: number; priceMinor?: number; price?: number };
-type MenuGroup = { id: string; name: string; isRequired?: boolean; allowPortions?: boolean; options: MenuOption[] };
+type MenuGroup = { id: string; name: string; isRequired?: boolean; options: MenuOption[] };
 type MenuDish = { id: string; name: string; sku?: string; priceMinor?: number; price?: number; minQuantity?: number; optionGroups?: MenuGroup[] };
 type MenuResponse = { menu: { categories: Array<{ id: string; name: string; dishes: MenuDish[] }>; totalDishes: number } };
 type Combination = { quantity: number; selections: Array<{ optionGroupId: string; optionId: string }> };
@@ -44,6 +45,7 @@ type OrderList = { items: Order[]; total: number; page: number; limit: number; t
 
 const money = (minor = 0) => `$${(minor / 100).toFixed(2)}`;
 const dateInput = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const pastDateInput = () => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 const nextCompanyDeliveryDate = (company?: Employee['company']) => {
   const date = new Date();
   const enabled = [company?.sun, company?.mon, company?.tue, company?.wed, company?.thu, company?.fri, company?.sat];
@@ -58,7 +60,9 @@ const nextCompanyDeliveryDate = (company?: Employee['company']) => {
 const fieldStyle: React.CSSProperties = { width: '100%', padding: '0.7rem 0.75rem', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(15,23,42,0.45)', color: 'var(--text-main)' };
 
 export default function OrdersPage() {
-  const { user, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const canCreateOrders = user ? hasCapability(user.role, 'ORDER_CREATE') : false;
+  const canOverrideOrders = user ? hasCapability(user.role, 'ORDER_OVERRIDE') : false;
   const [companies, setCompanies] = useState<Company[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [orders, setOrders] = useState<OrderList | null>(null);
@@ -74,6 +78,7 @@ export default function OrdersPage() {
   const [placeOnSave, setPlaceOnSave] = useState(false);
   const [status, setStatus] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [invoicedFilter, setInvoicedFilter] = useState('');
   const [from, setFrom] = useState('');
@@ -82,13 +87,21 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [commanding, setCommanding] = useState(false);
-  const [cutoffDate, setCutoffDate] = useState(dateInput());
+  const [cutoffDate, setCutoffDate] = useState(pastDateInput());
   const [processingCutoff, setProcessingCutoff] = useState(false);
+  const [correctedTotal, setCorrectedTotal] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
 
   const selectedEmployee = employees.find((item) => item.id === employeeId);
-  const canUseAddress = isAdmin || (selectedEmployee?.canChooseDeliveryAddress ?? false);
-  const canChangeTime = isAdmin || (selectedEmployee?.canChangeDeliveryTime ?? false);
-  const canChangePackaging = isAdmin || (selectedEmployee?.canChangePackaging ?? false);
+  const isOperationalOverride = Boolean(
+    selected && ['CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY'].includes(selected.status),
+  );
+  const selectedOriginalTotal = selected?.lines
+    .filter((line) => line.skuSnapshot !== 'INTERNAL-ADJUSTMENT')
+    .reduce((sum, line) => sum + line.totalMinor, 0) ?? 0;
+  const canUseAddress = canOverrideOrders || (selectedEmployee?.canChooseDeliveryAddress ?? false);
+  const canChangeTime = canOverrideOrders || (selectedEmployee?.canChangeDeliveryTime ?? false);
+  const canChangePackaging = canOverrideOrders || (selectedEmployee?.canChangePackaging ?? false);
   const subtotal = lines.reduce((orderTotal, line) => orderTotal + line.combinations.reduce((total, combination) => {
     const dishPrice = line.dish.priceMinor ?? Math.round((line.dish.price ?? 0) * 100);
     const optionPrice = combination.selections.reduce((sum, selection) => {
@@ -103,6 +116,7 @@ export default function OrdersPage() {
     try {
       const params = new URLSearchParams({ page: String(nextPage), limit: '10' });
       if (companyFilter) params.set('companyId', companyFilter);
+      if (search.trim()) params.set('search', search.trim());
       if (statusFilter) params.set('status', statusFilter);
       if (invoicedFilter) params.set('invoiced', invoicedFilter);
       if (from) params.set('deliveryFrom', from);
@@ -115,10 +129,10 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyFilter, from, invoicedFilter, statusFilter, to]);
+  }, [companyFilter, from, invoicedFilter, search, statusFilter, to]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !canCreateOrders) return;
     Promise.all([
       apiRequest<{ items: Company[] }>('/companies?page=1&limit=100'),
       apiRequest<{ items: Employee[] }>('/employees?page=1&limit=100'),
@@ -126,11 +140,11 @@ export default function OrdersPage() {
       setCompanies(companyResponse.items ?? []);
       setEmployees(employeeResponse.items ?? []);
     }).catch((error) => setStatus(error instanceof Error ? error.message : 'Unable to load order form data.'));
-  }, [user]);
+  }, [canCreateOrders, user]);
 
   useEffect(() => {
     if (user) void loadOrders(1);
-  }, [user, companyFilter, from, invoicedFilter, statusFilter, to, loadOrders]);
+  }, [user, companyFilter, from, invoicedFilter, search, statusFilter, to, loadOrders]);
 
   const resetForm = () => {
     setSelected(null);
@@ -229,14 +243,20 @@ export default function OrdersPage() {
     setSaving(true);
     setStatus('');
     try {
-      const payload = {
-        deliveryDate: `${deliveryDate}T00:00:00.000Z`,
-        deliveryTime: canChangeTime && deliveryTime ? deliveryTime : undefined,
-        packaging: canChangePackaging && packaging ? packaging : undefined,
-        address: canUseAddress && address.addressLine1 ? address : undefined,
-        lines: lines.map((line) => ({ dishId: line.dish.id, quantity: line.quantity, combinations: line.combinations })),
-        ...(!selected ? { employeeId, place: placeOnSave } : {}),
-      };
+      const payload = isOperationalOverride
+        ? {
+            deliveryTime: deliveryTime || undefined,
+            packaging: packaging || undefined,
+            address: address.addressLine1 ? address : undefined,
+          }
+        : {
+            deliveryDate: `${deliveryDate}T00:00:00.000Z`,
+            deliveryTime: canChangeTime && deliveryTime ? deliveryTime : undefined,
+            packaging: canChangePackaging && packaging ? packaging : undefined,
+            address: canUseAddress && address.addressLine1 ? address : undefined,
+            lines: lines.map((line) => ({ dishId: line.dish.id, quantity: line.quantity, combinations: line.combinations })),
+            ...(!selected ? { employeeId, place: placeOnSave } : {}),
+          };
       const editing = Boolean(selected);
       const saved = selected
         ? await apiRequest<Order>(`/orders/${selected.id}`, { method: 'PATCH', body: JSON.stringify(payload) })
@@ -265,6 +285,26 @@ export default function OrdersPage() {
       await loadOrders(page);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : `Unable to ${action} order.`);
+    } finally {
+      setCommanding(false);
+    }
+  };
+
+  const correctTotal = async () => {
+    if (!selected || !correctionReason.trim()) return;
+    setCommanding(true);
+    try {
+      const updated = await apiRequest<Order>(`/orders/${selected.id}/correct-total`, {
+        method: 'PATCH',
+        body: JSON.stringify({ correctedTotalMinor: Number(correctedTotal), reason: correctionReason }),
+      });
+      setSelected(updated);
+      setCorrectedTotal(String(updated.totalMinor));
+      setCorrectionReason('');
+      setStatus('Order total corrected.');
+      await loadOrders(page);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Unable to correct the order total.');
     } finally {
       setCommanding(false);
     }
@@ -300,6 +340,8 @@ export default function OrdersPage() {
       setDeliveryTime(detail.deliveryTime);
       setPackaging(detail.packaging);
       setAddress({ addressLine1: detail.addressLine1, addressLine2: detail.addressLine2 ?? '', city: detail.city, postalCode: detail.postalCode, instructions: '' });
+      setCorrectedTotal(String(detail.totalMinor));
+      setCorrectionReason('');
       const employeeMenu = await apiRequest<MenuResponse>(`/employees/${detail.employee.id}/menu`);
       setMenu(employeeMenu);
       setLines(detail.lines.map((line) => {
@@ -338,21 +380,22 @@ export default function OrdersPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><ClipboardList size={26} color="var(--accent-primary)" /><h1 style={{ fontSize: '2rem' }}>Orders</h1></div>
-          <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Create employee orders, review snapshots, and control the order lifecycle.</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{canCreateOrders ? 'Create employee orders, review snapshots, and control the order lifecycle.' : 'Review order status, delivery details, and progress.'}</p>
         </div>
-        <button className="btn-primary" type="button" onClick={resetForm}><Plus size={16} /> New order</button>
+        {canCreateOrders && <button className="btn-primary" type="button" onClick={resetForm}><Plus size={16} /> New order</button>}
       </div>
 
       {status && <div className="glass-panel" style={{ padding: '0.85rem 1rem', marginBottom: '1rem', borderColor: status.includes('Unable') || status.includes('invalid') ? 'rgba(244,63,94,0.5)' : 'rgba(52,211,153,0.35)' }}>{status}</div>}
 
-      {isAdmin && <form onSubmit={processCutoff} className="glass-panel" style={{ padding: '1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'end', gap: '0.75rem', flexWrap: 'wrap' }}>
+      {canOverrideOrders && <form onSubmit={processCutoff} className="glass-panel" style={{ padding: '1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'end', gap: '0.75rem', flexWrap: 'wrap' }}>
         <label className="form-label" style={{ minWidth: 210 }}>Process cutoff date<input className="form-input" type="date" required value={cutoffDate} onChange={(event) => setCutoffDate(event.target.value)} /></label>
         <button className="btn-secondary" type="submit" disabled={processingCutoff}><CalendarDays size={15} /> {processingCutoff ? 'Processing...' : 'Process cutoff'}</button>
       </form>}
 
       <div className="glass-panel" style={{ padding: '1rem', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '0.75rem' }}>
+        <input className="form-input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order, employee, company" aria-label="Search orders" />
         <select className="form-input" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)}><option value="">All companies</option>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
-        <select className="form-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">All statuses</option>{['DRAFT', 'PLACED', 'CONFIRMED', 'DELIVERED', 'CANCELLED', 'REJECTED'].map((item) => <option key={item}>{item}</option>)}</select>
+        <select className="form-input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">All statuses</option>{['DRAFT', 'PLACED', 'CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY', 'DISPATCH_READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REJECTED'].map((item) => <option key={item}>{item}</option>)}</select>
         <select className="form-input" value={invoicedFilter} onChange={(event) => setInvoicedFilter(event.target.value)}><option value="">Invoice: all</option><option value="true">Invoiced</option><option value="false">Not invoiced</option></select>
         <input className="form-input" type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Delivery from" />
         <input className="form-input" type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Delivery to" />
@@ -375,11 +418,12 @@ export default function OrdersPage() {
         </div>
 
         <div className="glass-panel" style={{ padding: '1.2rem' }}>
-          <form onSubmit={saveOrder}>
+          {!canCreateOrders && !selected && <div style={{ color: 'var(--text-muted)' }}>Select an order to review its timeline. Order creation and lifecycle commands are Admin-only.</div>}
+          {canCreateOrders && (!selected || ['DRAFT', 'PLACED', 'CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY'].includes(selected.status)) && <form onSubmit={saveOrder}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}><h2 style={{ fontSize: '1.1rem' }}>{selected ? `Order ${selected.id.slice(0, 8)}` : 'Create order'}</h2>{selected && <span className="badge badge-user">{selected.status}</span>}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
-              <label className="form-label">Employee<select className="form-input" value={employeeId} onChange={(event) => void loadEmployeeMenu(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.company?.name}</option>)}</select></label>
-              <label className="form-label">Delivery date<input className="form-input" type="date" required value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} /></label>
+              <label className="form-label">Employee<select className="form-input" disabled={Boolean(selected)} value={employeeId} onChange={(event) => void loadEmployeeMenu(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.company?.name}</option>)}</select></label>
+              <label className="form-label">Delivery date<input className="form-input" type="date" required disabled={isOperationalOverride} value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} /></label>
               <label className="form-label">Delivery time<input className="form-input" type="time" disabled={Boolean(selectedEmployee && !canChangeTime)} value={deliveryTime} onChange={(event) => setDeliveryTime(event.target.value)} placeholder="Company default" /></label>
               <label className="form-label">Packaging<input className="form-input" disabled={Boolean(selectedEmployee && !canChangePackaging)} value={packaging} onChange={(event) => setPackaging(event.target.value)} placeholder="Company default" /></label>
             </div>
@@ -394,7 +438,7 @@ export default function OrdersPage() {
               </div>
             </div>
 
-            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+            {!isOperationalOverride && <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}><h3 style={{ fontSize: '1rem' }}>Dishes and combinations</h3><strong>{money(subtotal)}</strong></div>
               {menuLoading && <div style={{ color: 'var(--text-muted)', padding: '0.5rem 0' }}>Loading employee dishes...</div>}
               {menu && (menu.menu?.categories ?? []).flatMap((category) => category.dishes.map((dish) => ({ categoryId: category.id, dish }))).map(({ categoryId, dish }) => <button type="button" className="btn-secondary btn-sm" key={`${categoryId}-${dish.id}`} onClick={() => addDish(dish)}><ShoppingBasket size={14} /> {dish.name}</button>)}
@@ -405,13 +449,29 @@ export default function OrdersPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8, marginTop: 8 }}>{(line.dish.optionGroups ?? []).map((group) => <label className="form-label" key={group.id}>{group.name}{group.isRequired ? ' *' : ''}<select className="form-input" value={combination.selections.find((selection) => selection.optionGroupId === group.id)?.optionId ?? ''} onChange={(event) => updateCombination(lineIndex, combinationIndex, { selections: [...combination.selections.filter((selection) => selection.optionGroupId !== group.id), ...(event.target.value ? [{ optionGroupId: group.id, optionId: event.target.value }] : [])] })}><option value="">{group.isRequired ? 'Select option' : 'None'}</option>{group.options.map((option) => <option key={option.id} value={option.id}>{option.name} (+{money(option.effectivePriceMinor ?? option.priceMinor ?? Math.round((option.price ?? 0) * 100))})</option>)}</select></label>)}</div>
                 </div>)}
               </div>)}
-            </div>
+            </div>}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: '1rem', flexWrap: 'wrap' }}>
               {!selected && <label style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--text-muted)' }}><input type="checkbox" checked={placeOnSave} onChange={(event) => setPlaceOnSave(event.target.checked)} /> Place immediately</label>}
-              <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}><button className="btn-primary" type="submit" disabled={saving || commanding}><Save size={15} /> {saving ? 'Saving...' : selected ? 'Save changes' : 'Save draft'}</button>{selected?.status === 'DRAFT' && <button className="btn-secondary" type="button" disabled={commanding} onClick={() => void command('place')}><Send size={15} /> {commanding ? 'Updating...' : 'Place'}</button>}{(selected?.status === 'DRAFT' || selected?.status === 'PLACED') && <button className="btn-secondary" type="button" disabled={commanding} onClick={() => void command('cancel')} style={{ color: '#fb7185' }}><XCircle size={14} /> Cancel</button>}</div>
+              <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}><button className="btn-primary" type="submit" disabled={saving || commanding}><Save size={15} /> {saving ? 'Saving...' : isOperationalOverride ? 'Save delivery override' : selected ? 'Save changes' : 'Save draft'}</button>{selected?.status === 'DRAFT' && <button className="btn-secondary" type="button" disabled={commanding} onClick={() => void command('place')}><Send size={15} /> {commanding ? 'Updating...' : 'Place'}</button>}{selected && ['DRAFT', 'PLACED', 'CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY'].includes(selected.status) && <button className="btn-secondary" type="button" disabled={commanding} onClick={() => void command('cancel')} style={{ color: '#fb7185' }}><XCircle size={14} /> Cancel</button>}</div>
             </div>
-          </form>
+          </form>}
+
+          {selected && <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '1.25rem', paddingTop: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: 8 }}>Order detail</h3>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: 10 }}>{selected.deliveryDate.slice(0, 10)} at {selected.deliveryTime} · {selected.addressLine1}, {selected.city} {selected.postalCode} · {selected.packaging}</div>
+            {(selected.lines ?? []).map((line) => <div key={line.id} style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '0.65rem 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><strong>{line.dishNameSnapshot} × {line.quantity}</strong><strong>{money(line.totalMinor)}</strong></div>
+              {line.combinations.map((combination, index) => <div key={index} style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 3 }}>{combination.quantity} × {combination.options.map((option) => option.optionNameSnapshot).join(', ') || 'No options'} · {money(combination.totalMinor)}</div>)}
+            </div>)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}><strong>Total</strong><strong>{money(selected.totalMinor)}</strong></div>
+          </div>}
+
+          {selected && canOverrideOrders && ['CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY', 'DISPATCH_READY', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(selected.status) && <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '1.25rem', paddingTop: '1rem' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: 8 }}>Short-delivery correction</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>For an uninvoiced order only. Enter the corrected full order total in minor units and an audit reason.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: 8 }}><input className="form-input" type="number" min="0" max={selectedOriginalTotal} value={correctedTotal} onChange={(event) => setCorrectedTotal(event.target.value)} /><input className="form-input" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Reason for short delivery" /><button className="btn-secondary" type="button" disabled={commanding || !correctionReason.trim()} onClick={() => void correctTotal()}>Apply correction</button></div>
+          </div>}
 
           {selected && <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '1.25rem', paddingTop: '1rem' }}><h3 style={{ fontSize: '1rem', marginBottom: 8 }}><Eye size={15} style={{ verticalAlign: 'middle', marginRight: 5 }} /> Timeline</h3>{(selected.timelineEvents ?? []).map((event) => <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '0.45rem 0', color: 'var(--text-muted)', fontSize: '0.84rem' }}><span><strong style={{ color: 'var(--text-main)' }}>{event.status}</strong>{event.note ? ` · ${event.note}` : ''}</span><span>{new Date(event.createdAt).toLocaleString()}</span></div>)}</div>}
         </div>

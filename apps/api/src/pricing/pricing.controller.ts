@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { PricingService } from './pricing.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../authorization/guards/permission.guard';
 import { RequirePermissions } from '../authorization/decorators/permissions.decorator';
 import { Permission } from '@project/shared';
+import { CreatePriceTierDto, UpdatePriceTierDto } from './dto/price-tier.dto';
 
 @Controller('pricing')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -14,6 +15,18 @@ export class PricingController {
   @RequirePermissions(Permission.CATALOGUE_MANAGE)
   async getTiers() {
     return this.pricingService.getTiers();
+  }
+
+  @Post('tiers')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  createTier(@Body() data: CreatePriceTierDto) {
+    return this.pricingService.createTier(data);
+  }
+
+  @Patch('tiers/:id')
+  @RequirePermissions(Permission.CATALOGUE_MANAGE)
+  updateTier(@Param('id') id: string, @Body() data: UpdatePriceTierDto) {
+    return this.pricingService.updateTier(id, data);
   }
 
   @Get('calculate')

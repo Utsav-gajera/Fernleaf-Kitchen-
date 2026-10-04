@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { Layers, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { hasCapability, NAV_ITEMS } from '../lib/access';
 
 export default function Navbar() {
   const { user, logout, isAdmin } = useAuth();
@@ -40,36 +41,11 @@ export default function Navbar() {
             <Link href="/dashboard" className="btn-secondary btn-sm" id="nav-dashboard-btn">
               Dashboard
             </Link>
-            {(user.role === 'ADMIN' || user.role === 'DISPATCH') && (
-              <Link href="/dashboard/orders" className="btn-secondary btn-sm" id="nav-orders-btn">
-                Orders
+            {NAV_ITEMS.filter((item) => hasCapability(user.role, item.capability)).map((item) => (
+              <Link key={item.href} href={item.href} className="btn-secondary btn-sm" id={item.id}>
+                {item.label}
               </Link>
-            )}
-            {user.role === 'KITCHEN' && (
-              <Link href="/dashboard/kitchen" className="btn-secondary btn-sm" id="nav-kitchen-btn">
-                Kitchen
-              </Link>
-            )}
-            {(user.role === 'ADMIN' || user.role === 'DISPATCH') && (
-              <Link href="/dashboard/dispatch" className="btn-secondary btn-sm" id="nav-dispatch-btn">
-                Dispatch
-              </Link>
-            )}
-            {user.role === 'ADMIN' && (
-              <Link href="/dashboard/billing" className="btn-secondary btn-sm" id="nav-billing-btn">
-                Billing
-              </Link>
-            )}
-            {user.role === 'ADMIN' && (
-              <Link href="/dashboard/settings" className="btn-secondary btn-sm" id="nav-settings-btn">
-                Settings
-              </Link>
-            )}
-            {user.role === 'DRIVER' && (
-              <Link href="/dashboard/driver" className="btn-secondary btn-sm" id="nav-driver-btn">
-                My drops
-              </Link>
-            )}
+            ))}
 
             <div
               className={`badge ${isAdmin ? 'badge-admin' : 'badge-user'}`}
@@ -93,9 +69,6 @@ export default function Navbar() {
           <>
             <Link href="/login" className="btn-secondary btn-sm" id="nav-login-btn">
               Login
-            </Link>
-            <Link href="/register" className="btn-primary btn-sm" id="nav-register-btn">
-              Register
             </Link>
           </>
         )}

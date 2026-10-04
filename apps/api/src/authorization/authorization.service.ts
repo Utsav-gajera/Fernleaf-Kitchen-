@@ -14,25 +14,20 @@ const ROLE_TO_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.KITCHEN_UPDATE,
     Permission.DISPATCH_VIEW,
     Permission.DISPATCH_UPDATE,
-    Permission.DRIVER_VIEW_OWN,
-    Permission.DRIVER_DELIVER,
     Permission.BILLING_MANAGE,
     Permission.SETTINGS_MANAGE,
   ],
   [Role.KITCHEN]: [
-    Permission.CATALOGUE_MANAGE,
     Permission.ORDER_VIEW,
     Permission.KITCHEN_VIEW,
     Permission.KITCHEN_UPDATE,
   ],
   [Role.DISPATCH]: [
     Permission.ORDER_VIEW,
-    Permission.ORDER_CREATE,
     Permission.DISPATCH_VIEW,
     Permission.DISPATCH_UPDATE,
   ],
   [Role.DRIVER]: [
-    Permission.ORDER_VIEW,
     Permission.DRIVER_VIEW_OWN,
     Permission.DRIVER_DELIVER,
   ],
@@ -40,10 +35,6 @@ const ROLE_TO_PERMISSIONS: Record<Role, Permission[]> = {
 
 @Injectable()
 export class AuthorizationService {
-  hasRequiredRole(userRole: string, allowedRoles: (Role | string)[]): boolean {
-    return allowedRoles.includes(userRole as Role);
-  }
-
   getRoles(): string[] {
     return Object.values(Role);
   }

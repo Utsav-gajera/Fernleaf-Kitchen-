@@ -19,18 +19,21 @@ export class DispatchService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getDrops(date?: string) {
-    const dateKey = date ?? new Date().toISOString().slice(0, 10);
+    const settings = await this.prisma.platformSettings.findUnique({
+      where: { id: 'default' },
+      select: { kitchenTimeZone: true },
+    });
+    const timeZone = settings?.kitchenTimeZone ?? 'UTC';
+    const dateKey = date ?? this.kitchenToday(timeZone);
     if (!DATE_PATTERN.test(dateKey)) {
       throw new BadRequestException('date must use YYYY-MM-DD format.');
     }
 
-    const range = {
-      gte: new Date(`${dateKey}T00:00:00.000Z`),
-      lt: new Date(new Date(`${dateKey}T00:00:00.000Z`).getTime() + 86_400_000),
-    };
+    const orderDateRange = this.dateOnlyRange(dateKey);
+    const dropDateRange = this.kitchenDateRange(dateKey, timeZone);
     const orders = await this.prisma.order.findMany({
       where: {
-        deliveryDate: range,
+        deliveryDate: orderDateRange,
         status: OrderStatus.KITCHEN_READY,
       },
       include: { company: true, dropOrders: { include: { drop: true } } },
@@ -41,6 +44,9 @@ export class DispatchService {
       for (const order of orders) {
         const groupingKey = this.groupingKey(order);
         const existingDrop = order.dropOrders[0]?.drop;
+        if (existingDrop && existingDrop.groupingKey !== groupingKey && existingDrop.status !== DropStatus.KITCHEN_READY) {
+          throw new BadRequestException('An order cannot be reassigned after dispatch has begun.');
+        }
         const drop = await tx.drop.upsert({
           where: { groupingKey },
           create: {
@@ -52,7 +58,7 @@ export class DispatchService {
             city: order.city,
             postalCode: order.postalCode,
             deliveryTime: order.deliveryTime,
-            deliveryAt: this.deliveryAt(order.deliveryDate, order.deliveryTime),
+            deliveryAt: this.deliveryAt(order.deliveryDate, order.deliveryTime, timeZone),
             status: existingDrop?.status ?? DropStatus.KITCHEN_READY,
           },
           update: {
@@ -62,20 +68,28 @@ export class DispatchService {
             city: order.city,
             postalCode: order.postalCode,
             deliveryTime: order.deliveryTime,
-            deliveryAt: this.deliveryAt(order.deliveryDate, order.deliveryTime),
+            deliveryAt: this.deliveryAt(order.deliveryDate, order.deliveryTime, timeZone),
             driverId: existingDrop?.driverId ?? order.company.defaultDriverId,
           },
         });
+        if (drop.status !== DropStatus.KITCHEN_READY) {
+          throw new BadRequestException('An order cannot be assigned to a drop after dispatch has begun.');
+        }
         await tx.dropOrder.upsert({
           where: { orderId: order.id },
           create: { dropId: drop.id, orderId: order.id },
           update: { dropId: drop.id },
         });
+        if (existingDrop && existingDrop.id !== drop.id && existingDrop.status === DropStatus.KITCHEN_READY) {
+          await tx.drop.deleteMany({
+            where: { id: existingDrop.id, status: DropStatus.KITCHEN_READY, orders: { none: {} } },
+          });
+        }
       }
     });
 
     return this.prisma.drop.findMany({
-      where: { deliveryAt: range },
+      where: { deliveryAt: dropDateRange },
       include: {
         company: { select: { id: true, name: true } },
         driver: { select: { id: true, name: true, email: true } },
@@ -108,9 +122,15 @@ export class DispatchService {
       throw new BadRequestException('Driver assignment is only allowed before dispatch-ready.');
     }
 
-    return this.prisma.drop.update({
-      where: { id: dropId },
+    const updated = await this.prisma.drop.updateMany({
+      where: { id: dropId, status: drop.status, updatedAt: drop.updatedAt },
       data: { driverId },
+    });
+    if (updated.count !== 1) {
+      throw new BadRequestException('Drop changed before the driver could be assigned. Refresh and try again.');
+    }
+    return this.prisma.drop.findUnique({
+      where: { id: dropId },
       include: { driver: { select: { id: true, name: true, email: true } } },
     });
   }
@@ -124,6 +144,7 @@ export class DispatchService {
   }
 
   async markDispatchReady(dropId: string) {
+    await this.assertDropContainsEveryReadyOrder(dropId);
     return this.transition(
       dropId,
       DropStatus.KITCHEN_READY,
@@ -131,6 +152,35 @@ export class DispatchService {
       OrderStatus.KITCHEN_READY,
       OrderStatus.DISPATCH_READY,
     );
+  }
+
+  private async assertDropContainsEveryReadyOrder(dropId: string) {
+    const drop = await this.prisma.drop.findUnique({ where: { id: dropId } });
+    if (!drop) throw new NotFoundException(`Drop ${dropId} was not found.`);
+    const dateKey = drop.groupingKey.split('|').at(-1);
+    if (!dateKey || !DATE_PATTERN.test(dateKey)) {
+      throw new BadRequestException('Drop grouping date is invalid.');
+    }
+    const incomplete = await this.prisma.order.count({
+      where: {
+        companyId: drop.companyId,
+        deliveryDate: this.dateOnlyRange(dateKey),
+        deliveryTime: drop.deliveryTime,
+        addressLine1: drop.addressLine1,
+        addressLine2: drop.addressLine2,
+        city: drop.city,
+        postalCode: drop.postalCode,
+        status: {
+          in: [OrderStatus.CONFIRMED, OrderStatus.KITCHEN_IN_PROGRESS, OrderStatus.KITCHEN_READY],
+        },
+        dropOrders: { none: { dropId } },
+      },
+    });
+    if (incomplete > 0) {
+      throw new BadRequestException(
+        'Every order in this grouped drop must be kitchen-ready and attached before dispatch can begin. Refresh the board after kitchen completion.',
+      );
+    }
   }
 
   async markOutForDelivery(dropId: string) {
@@ -157,6 +207,7 @@ export class DispatchService {
       DropStatus.DELIVERED,
       OrderStatus.OUT_FOR_DELIVERY,
       OrderStatus.DELIVERED,
+      'Admin override marked delivery complete',
     );
   }
 
@@ -218,6 +269,15 @@ export class DispatchService {
         where: { id: { in: orders.map((order) => order.orderId) }, status: OrderStatus.OUT_FOR_DELIVERY },
         data: { status: OrderStatus.DELIVERED },
       });
+      if (orders.length > 0) {
+        await tx.orderTimelineEvent.createMany({
+          data: orders.map(({ orderId }) => ({
+            orderId,
+            status: OrderStatus.DELIVERED,
+            note: onTime ? 'Delivered on time' : 'Delivered late',
+          })),
+        });
+      }
       return tx.drop.findUnique({ where: { id: dropId } });
     });
   }
@@ -228,6 +288,7 @@ export class DispatchService {
     to: DropStatus,
     orderFrom: OrderStatus,
     orderTo: OrderStatus,
+    timelineNote?: string,
   ) {
     this.stateMachine.assertTransition(from, to);
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -238,7 +299,15 @@ export class DispatchService {
       }
       const result = await tx.drop.updateMany({
         where: { id: dropId, status: from },
-        data: { status: to },
+        data: {
+          status: to,
+          ...(to === DropStatus.DELIVERED
+            ? {
+                deliveredAt: new Date(),
+                onTime: new Date().getTime() <= drop.deliveryAt.getTime(),
+              }
+            : {}),
+        },
       });
       if (result.count !== 1) {
         throw new BadRequestException('Drop state changed before it could be updated.');
@@ -252,6 +321,13 @@ export class DispatchService {
         if (orders.count !== orderIds.length) {
           throw new BadRequestException(`Orders must be ${orderFrom} before they can become ${orderTo}.`);
         }
+        await tx.orderTimelineEvent.createMany({
+          data: orderIds.map((orderId) => ({
+            orderId,
+            status: orderTo,
+            note: timelineNote ?? `Dispatch moved order to ${orderTo.toLowerCase().replaceAll('_', ' ')}`,
+          })),
+        });
       }
       return result;
     });
@@ -282,11 +358,15 @@ export class DispatchService {
     ].map((value) => value.trim().toLowerCase()).join('|');
   }
 
-  private deliveryAt(date: Date, time: string) {
+  private deliveryAt(date: Date, time: string, timeZone: string) {
     const [hours, minutes] = time.split(':').map(Number);
-    const result = new Date(date);
-    result.setUTCHours(hours, minutes, 0, 0);
-    return result;
+    const dateKey = date.toISOString().slice(0, 10);
+    return this.localDateTimeToInstantAt(
+      dateKey,
+      timeZone,
+      hours || 0,
+      minutes || 0,
+    );
   }
 
   private kitchenToday(timeZone: string) {
@@ -308,9 +388,18 @@ export class DispatchService {
     return { gte: start, lt: this.localDateTimeToInstant(nextDateKey, timeZone) };
   }
 
+  private dateOnlyRange(dateKey: string) {
+    const start = new Date(`${dateKey}T00:00:00.000Z`);
+    return { gte: start, lt: new Date(start.getTime() + 86_400_000) };
+  }
+
   private localDateTimeToInstant(dateKey: string, timeZone: string) {
+    return this.localDateTimeToInstantAt(dateKey, timeZone, 0, 0);
+  }
+
+  private localDateTimeToInstantAt(dateKey: string, timeZone: string, hours: number, minutes: number) {
     const [year, month, day] = dateKey.split('-').map(Number);
-    const base = new Date(Date.UTC(year, month - 1, day));
+    const base = new Date(Date.UTC(year, month - 1, day, hours, minutes));
     let guess = base.getTime();
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const parts = new Intl.DateTimeFormat('en-US', {

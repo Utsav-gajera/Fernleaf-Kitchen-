@@ -37,7 +37,30 @@ export default function PricingAdminPage() {
   const [optionList, setOptionList] = useState<Array<{ id: string; name: string }>>([]);
   const [overrideForm, setOverrideForm] = useState({ tierId: '', dishId: '', optionId: '', priceMinor: '0' });
   const [tierOverrides, setTierOverrides] = useState<{ dishPrices: TierPriceOverride[]; optionPrices: TierPriceOverride[] } | null>(null);
+  const [tierForm, setTierForm] = useState({ id: '', name: '', description: '', strategy: 'explicit', parentId: '', value: '', isDefault: false });
   const [error, setError] = useState('');
+
+  const loadMissing = useCallback(async (tierId: string) => {
+    try {
+      const response = await apiRequest<MissingData>(`/pricing/missing?tierId=${tierId}`);
+      setMissing(response ?? { tier: null, missingDishes: [], missingOptions: [] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load missing prices');
+    }
+  }, []);
+
+  const loadOverrides = useCallback(async (tierId: string) => {
+    try {
+      const response = await apiRequest<{ data?: { dishPrices?: TierPriceOverride[]; optionPrices?: TierPriceOverride[] } }>(`/pricing/overrides?tierId=${tierId}`);
+      const nextOverrides = response?.data ?? { dishPrices: [], optionPrices: [] };
+      setTierOverrides({
+        dishPrices: nextOverrides.dishPrices ?? [],
+        optionPrices: nextOverrides.optionPrices ?? [],
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load override prices');
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -62,29 +85,7 @@ export default function PricingAdminPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load pricing data');
     }
-  }, []);
-
-  const loadMissing = useCallback(async (tierId: string) => {
-    try {
-      const response = await apiRequest<MissingData>(`/pricing/missing?tierId=${tierId}`);
-      setMissing(response ?? { tier: null, missingDishes: [], missingOptions: [] });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load missing prices');
-    }
-  }, []);
-
-  const loadOverrides = useCallback(async (tierId: string) => {
-    try {
-      const response = await apiRequest<{ data?: { dishPrices?: TierPriceOverride[]; optionPrices?: TierPriceOverride[] } }>(`/pricing/overrides?tierId=${tierId}`);
-      const nextOverrides = response?.data ?? { dishPrices: [], optionPrices: [] };
-      setTierOverrides({
-        dishPrices: nextOverrides.dishPrices ?? [],
-        optionPrices: nextOverrides.optionPrices ?? [],
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load override prices');
-    }
-  }, []);
+  }, [loadMissing, loadOverrides]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -131,6 +132,40 @@ export default function PricingAdminPage() {
     }
   };
 
+  const editTier = (tier: Tier) => {
+    setTierForm({
+      id: tier.id,
+      name: tier.name,
+      description: tier.description ?? '',
+      strategy: tier.derivedFromTierId ? 'markup' : tier.multiplier != null ? 'cost' : 'explicit',
+      parentId: tier.derivedFromTierId ?? '',
+      value: String(tier.derivedFromTierId ? tier.markupPercent ?? '' : tier.multiplier ?? ''),
+      isDefault: tier.isDefault,
+    });
+  };
+
+  const saveTier = async () => {
+    try {
+      setError('');
+      const payload = {
+        name: tierForm.name,
+        description: tierForm.description || undefined,
+        isDefault: tierForm.isDefault,
+        derivedFromTierId: tierForm.strategy === 'markup' ? tierForm.parentId : null,
+        multiplier: tierForm.strategy === 'cost' ? Number(tierForm.value) : null,
+        markupPercent: tierForm.strategy === 'markup' ? Number(tierForm.value) : null,
+      };
+      await apiRequest(tierForm.id ? `/pricing/tiers/${tierForm.id}` : '/pricing/tiers', {
+        method: tierForm.id ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      });
+      setTierForm({ id: '', name: '', description: '', strategy: 'explicit', parentId: '', value: '', isDefault: false });
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save price tier');
+    }
+  };
+
   return (
     <div className="container" style={{ padding: '2rem 1rem 4rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -157,6 +192,16 @@ export default function PricingAdminPage() {
           </select>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr 1fr 110px auto', gap: '0.7rem', alignItems: 'end', marginBottom: '1rem' }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Name<input className="form-input" value={tierForm.name} onChange={(event) => setTierForm({ ...tierForm, name: event.target.value })} /></label>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Description<input className="form-input" value={tierForm.description} onChange={(event) => setTierForm({ ...tierForm, description: event.target.value })} /></label>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Rule<select className="form-input" value={tierForm.strategy} onChange={(event) => setTierForm({ ...tierForm, strategy: event.target.value, parentId: '', value: '' })}><option value="explicit">Explicit only</option><option value="cost">Cost multiplier</option><option value="markup">Tier markup</option></select></label>
+          {tierForm.strategy === 'markup' ? <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Parent<select className="form-input" value={tierForm.parentId} onChange={(event) => setTierForm({ ...tierForm, parentId: event.target.value })}><option value="">Select tier</option>{tiers.filter((tier) => tier.id !== tierForm.id).map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}</select></label> : <span />}
+          {tierForm.strategy !== 'explicit' ? <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{tierForm.strategy === 'cost' ? 'Multiplier' : 'Markup %'}<input className="form-input" type="number" min="0.01" step="0.01" value={tierForm.value} onChange={(event) => setTierForm({ ...tierForm, value: event.target.value })} /></label> : <span />}
+          <div style={{ display: 'flex', gap: 6 }}><button className="btn-primary btn-sm" type="button" onClick={() => void saveTier()} disabled={!tierForm.name.trim()}>{tierForm.id ? 'Update' : 'Add tier'}</button>{tierForm.id && <button className="btn-secondary btn-sm" type="button" onClick={() => setTierForm({ id: '', name: '', description: '', strategy: 'explicit', parentId: '', value: '', isDefault: false })}>Cancel</button>}</div>
+          <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}><input type="checkbox" checked={tierForm.isDefault} onChange={(event) => setTierForm({ ...tierForm, isDefault: event.target.checked })} /> Default tier</label>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.9rem' }}>
           {tiers.map((tier) => (
             <div key={tier.id} className="glass-panel" style={{ padding: '1rem', background: tier.isDefault ? 'rgba(34,197,94,0.08)' : undefined }}>
@@ -174,6 +219,7 @@ export default function PricingAdminPage() {
                 {tier.multiplier != null ? `Multiplier: ${tier.multiplier}` : null}
                 {tier.markupPercent != null ? `Markup: ${tier.markupPercent}%` : null}
               </div>
+              <button type="button" className="btn-secondary btn-sm" style={{ marginTop: '0.75rem' }} onClick={() => editTier(tier)}>Edit tier</button>
             </div>
           ))}
         </div>

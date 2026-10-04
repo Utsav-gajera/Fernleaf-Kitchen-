@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Truck, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
+import { hasCapability } from '../../../lib/access';
 
 type Driver = { id: string; name?: string | null; email: string };
 type Drop = {
@@ -20,12 +21,12 @@ type Drop = {
   orders: Array<{ order: { id: string; totalMinor: number; employee: { id: string; name: string } } }>;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
 const money = (minor: number) => `$${(minor / 100).toFixed(2)}`;
 
 export default function DispatchPage() {
   const { user } = useAuth();
-  const [date, setDate] = useState(today());
+  const canOverrideOrders = user ? hasCapability(user.role, 'ORDER_OVERRIDE') : false;
+  const [date, setDate] = useState('');
   const [drops, setDrops] = useState<Drop[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,10 +50,17 @@ export default function DispatchPage() {
   }, [date]);
 
   useEffect(() => {
-    if (user) void load();
-  }, [user, load]);
+    if (!user) return;
+    void apiRequest<{ date?: string }>('/dashboard')
+      .then((dashboard) => setDate(dashboard.date ?? ''))
+      .catch((error) => setMessage(error instanceof Error ? error.message : 'Unable to determine kitchen date.'));
+  }, [user]);
 
-  const command = async (id: string, action: 'assign-driver' | 'dispatch-ready' | 'out-for-delivery', driverId?: string) => {
+  useEffect(() => {
+    if (user && date) void load();
+  }, [user, date, load]);
+
+  const command = async (id: string, action: 'assign-driver' | 'dispatch-ready' | 'out-for-delivery' | 'delivered', driverId?: string) => {
     try {
       await apiRequest(`/drops/${id}/${action}`, {
         method: 'POST',
@@ -109,6 +117,7 @@ export default function DispatchPage() {
                   </>
                 )}
                 {drop.status === 'DISPATCH_READY' && <button className="btn-primary btn-sm" onClick={() => void command(drop.id, 'out-for-delivery')}>Out for delivery</button>}
+                {drop.status === 'OUT_FOR_DELIVERY' && canOverrideOrders && <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'delivered')}>Admin override: delivered</button>}
               </div>
             </article>
           ))}

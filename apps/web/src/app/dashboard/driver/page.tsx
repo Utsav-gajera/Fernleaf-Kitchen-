@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { CheckCircle2, MapPin, RefreshCw, Truck } from 'lucide-react';
 import { apiRequest } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
@@ -17,6 +18,7 @@ type Drop = {
   deliveryAt: string;
   deliveredAt?: string | null;
   onTime?: boolean | null;
+  deliveryPhotoUrl?: string | null;
   orders: Array<{ order: { addressInstructions?: string | null } }>;
 };
 
@@ -25,6 +27,9 @@ export default function DriverPage() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [loading, setLoading] = useState(false);
   const [workingId, setWorkingId] = useState('');
+  const [deliveryFormId, setDeliveryFormId] = useState('');
+  const [deliveryNote, setDeliveryNote] = useState('');
+  const [deliveryPhotoUrl, setDeliveryPhotoUrl] = useState('');
   const [message, setMessage] = useState('');
 
   const load = useCallback(async () => {
@@ -51,13 +56,37 @@ export default function DriverPage() {
     setWorkingId(dropId);
     setMessage('');
     try {
-      await apiRequest(`/driver/drops/${dropId}/deliver`, { method: 'POST' });
+      await apiRequest(`/driver/drops/${dropId}/deliver`, {
+        method: 'POST',
+        body: JSON.stringify({
+          note: deliveryNote.trim() || undefined,
+          photoUrl: deliveryPhotoUrl.trim() || undefined,
+        }),
+      });
+      setDeliveryFormId('');
+      setDeliveryNote('');
+      setDeliveryPhotoUrl('');
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to mark this drop delivered.');
     } finally {
       setWorkingId('');
     }
+  };
+
+  const choosePhoto = (file?: File) => {
+    if (!file) {
+      setDeliveryPhotoUrl('');
+      return;
+    }
+    if (file.size > 1_500_000) {
+      setMessage('Photo must be 1.5 MB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setDeliveryPhotoUrl(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => setMessage('Unable to read that photo.');
+    reader.readAsDataURL(file);
   };
 
   const instructions = (drop: Drop) => drop.orders
@@ -107,7 +136,33 @@ export default function DriverPage() {
                 <span className="badge">{drop.status.replaceAll('_', ' ')}</span>
               </div>
               {instructions(drop) && <p className="text-muted" style={{ margin: '0.4rem 0' }}>{instructions(drop)}</p>}
-              {drop.status === 'OUT_FOR_DELIVERY' && <button className="btn-primary" style={{ width: '100%', marginTop: 8, minHeight: 46 }} onClick={() => void deliver(drop.id)} disabled={workingId === drop.id}><CheckCircle2 size={17} /> Deliver</button>}
+              {drop.status === 'OUT_FOR_DELIVERY' && (
+                deliveryFormId === drop.id ? (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                    <textarea
+                      className="form-input"
+                      placeholder="Delivery note (optional)"
+                      value={deliveryNote}
+                      onChange={(event) => setDeliveryNote(event.target.value)}
+                      rows={2}
+                    />
+                    <label className="form-label">Photo (optional)<input className="form-input" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => choosePhoto(event.target.files?.[0])} /></label>
+                    {deliveryPhotoUrl && <Image unoptimized width={640} height={360} src={deliveryPhotoUrl} alt="Delivery proof preview" style={{ width: '100%', height: 'auto', maxHeight: 180, objectFit: 'cover', borderRadius: 10 }} />}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn-primary" style={{ flex: 1, minHeight: 46 }} onClick={() => void deliver(drop.id)} disabled={workingId === drop.id}>
+                        <CheckCircle2 size={17} /> {workingId === drop.id ? 'Saving...' : 'Confirm delivered'}
+                      </button>
+                      <button className="btn-secondary" style={{ minHeight: 46 }} onClick={() => setDeliveryFormId('')} disabled={workingId === drop.id}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="btn-primary" style={{ width: '100%', marginTop: 8, minHeight: 46 }} onClick={() => setDeliveryFormId(drop.id)}>
+                    <CheckCircle2 size={17} /> Deliver
+                  </button>
+                )
+              )}
               {drop.status === 'DELIVERED' && <p style={{ color: '#86efac', margin: '0.5rem 0 0' }}>Delivered {drop.deliveredAt ? formatTime(drop.deliveredAt) : ''}{drop.onTime === true ? ' · On time' : drop.onTime === false ? ' · Late' : ''}</p>}
             </article>
           ))}
