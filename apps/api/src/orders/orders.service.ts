@@ -210,11 +210,7 @@ export class OrdersService {
         throw new ForbiddenException('Employee cannot change packaging.');
       }
       if (data.deliveryDate) {
-        await this.validateDeliveryDate(
-          new Date(data.deliveryDate),
-          employee,
-          this.canOverride(user.role),
-        );
+        await this.validateDeliveryDate(new Date(data.deliveryDate), employee);
       }
       const address = data.address ? this.resolveAddress(data.address, employee) : {};
       await this.prisma.$transaction(async (tx) => {
@@ -466,7 +462,7 @@ export class OrdersService {
   ) {
     const deliveryDate = new Date(data.deliveryDate);
     if (!employee.company.isActive) throw new BadRequestException('Company is inactive.');
-    await this.validateDeliveryDate(deliveryDate, employee, hasOverridePermission);
+    await this.validateDeliveryDate(deliveryDate, employee);
     const menu = await this.menuService.getMenuForEmployee(employee.id);
     const available = new Map(menu.menu.categories.flatMap((category) => category.dishes.map((dish) => [dish.id, dish])));
     const address = this.resolveAddress(data.address, employee);
@@ -549,7 +545,6 @@ export class OrdersService {
   private async validateDeliveryDate(
     deliveryDate: Date,
     employee: Awaited<ReturnType<OrdersService['loadEmployee']>>,
-    hasOverridePermission: boolean,
   ) {
     if (Number.isNaN(deliveryDate.getTime())) {
       throw new BadRequestException('Delivery date must be valid.');
@@ -581,12 +576,7 @@ export class OrdersService {
         kitchenCalendar: new KitchenCalendarService(kitchenHolidays.map((holiday) => holiday.date.toISOString().slice(0, 10)), settings),
         clock: { now: () => new Date() },
       });
-      if (
-        cutoff.isPastCutoff(
-          this.dateOnlyAtKitchenNoon(companyDate, settings.kitchenTimeZone),
-        ) &&
-        !hasOverridePermission
-      ) {
+      if (cutoff.isPastCutoff(this.dateOnlyAtKitchenNoon(companyDate, settings.kitchenTimeZone))) {
         throw new BadRequestException('Order cutoff has passed.');
       }
     }

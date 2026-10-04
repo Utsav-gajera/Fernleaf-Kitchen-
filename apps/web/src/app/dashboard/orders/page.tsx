@@ -46,17 +46,6 @@ type OrderList = { items: Order[]; total: number; page: number; limit: number; t
 const money = (minor = 0) => `$${(minor / 100).toFixed(2)}`;
 const dateInput = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const pastDateInput = () => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-const nextCompanyDeliveryDate = (company?: Employee['company']) => {
-  const date = new Date();
-  const enabled = [company?.sun, company?.mon, company?.tue, company?.wed, company?.thu, company?.fri, company?.sat];
-  for (let offset = 1; offset <= 14; offset += 1) {
-    date.setDate(date.getDate() + 1);
-    if (enabled[date.getDay()] !== false) {
-      return date.toISOString().slice(0, 10);
-    }
-  }
-  return dateInput();
-};
 const fieldStyle: React.CSSProperties = { width: '100%', padding: '0.7rem 0.75rem', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(15,23,42,0.45)', color: 'var(--text-main)' };
 
 export default function OrdersPage() {
@@ -71,6 +60,7 @@ export default function OrdersPage() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(dateInput());
+  const [minimumDeliveryDate, setMinimumDeliveryDate] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
   const [packaging, setPackaging] = useState('');
   const [address, setAddress] = useState({ addressLine1: '', addressLine2: '', city: '', postalCode: '', instructions: '' });
@@ -151,6 +141,7 @@ export default function OrdersPage() {
     setMenu(null);
     setEmployeeId('');
     setDeliveryDate(dateInput());
+    setMinimumDeliveryDate('');
     setDeliveryTime('');
     setPackaging('');
     setAddress({ addressLine1: '', addressLine2: '', city: '', postalCode: '', instructions: '' });
@@ -162,9 +153,8 @@ export default function OrdersPage() {
     setEmployeeId(nextEmployeeId);
     setLines([]);
     setMenu(null);
-    const employee = employees.find((item) => item.id === nextEmployeeId);
-    setDeliveryTime(employee?.company ? '' : deliveryTime);
-    setDeliveryDate(nextCompanyDeliveryDate(employee?.company));
+    setMinimumDeliveryDate('');
+    setDeliveryTime(employees.find((item) => item.id === nextEmployeeId)?.company ? '' : deliveryTime);
     try {
       if (!nextEmployeeId) {
         return;
@@ -176,6 +166,7 @@ export default function OrdersPage() {
       ]);
       setMenu(employeeMenu);
       setDeliveryDate(nextDate.date);
+      setMinimumDeliveryDate(nextDate.date);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to load employee menu.');
     } finally {
@@ -210,6 +201,10 @@ export default function OrdersPage() {
     }
     if (!deliveryDate || Number.isNaN(new Date(`${deliveryDate}T00:00:00`).getTime())) {
       setStatus('Select a valid delivery date.');
+      return;
+    }
+    if (!isOperationalOverride && minimumDeliveryDate && deliveryDate < minimumDeliveryDate) {
+      setStatus(`Select a delivery date on or after ${minimumDeliveryDate}; earlier dates are past their cutoff.`);
       return;
     }
     for (const line of lines) {
@@ -342,8 +337,12 @@ export default function OrdersPage() {
       setAddress({ addressLine1: detail.addressLine1, addressLine2: detail.addressLine2 ?? '', city: detail.city, postalCode: detail.postalCode, instructions: '' });
       setCorrectedTotal(String(detail.totalMinor));
       setCorrectionReason('');
-      const employeeMenu = await apiRequest<MenuResponse>(`/employees/${detail.employee.id}/menu`);
+      const [employeeMenu, nextDate] = await Promise.all([
+        apiRequest<MenuResponse>(`/employees/${detail.employee.id}/menu`),
+        apiRequest<{ date: string }>(`/orders/next-delivery-date?employeeId=${encodeURIComponent(detail.employee.id)}`),
+      ]);
       setMenu(employeeMenu);
+      setMinimumDeliveryDate(nextDate.date);
       setLines(detail.lines.map((line) => {
         const dish = employeeMenu.menu.categories.flatMap((category) => category.dishes).find((candidate) => candidate.name === line.dishNameSnapshot) ?? { id: line.skuSnapshot, name: line.dishNameSnapshot, sku: line.skuSnapshot, priceMinor: line.dishUnitPriceMinor, optionGroups: [] };
         return {
@@ -423,7 +422,7 @@ export default function OrdersPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}><h2 style={{ fontSize: '1.1rem' }}>{selected ? `Order ${selected.id.slice(0, 8)}` : 'Create order'}</h2>{selected && <span className="badge badge-user">{selected.status}</span>}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '0.8rem', marginBottom: '1rem' }}>
               <label className="form-label">Employee<select className="form-input" disabled={Boolean(selected)} value={employeeId} onChange={(event) => void loadEmployeeMenu(event.target.value)}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.company?.name}</option>)}</select></label>
-              <label className="form-label">Delivery date<input className="form-input" type="date" required disabled={isOperationalOverride} value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} /></label>
+              <label className="form-label">Delivery date<input className="form-input" type="date" required disabled={isOperationalOverride} min={isOperationalOverride ? undefined : minimumDeliveryDate || undefined} value={deliveryDate} onChange={(event) => setDeliveryDate(event.target.value)} /></label>
               <label className="form-label">Delivery time<input className="form-input" type="time" disabled={Boolean(selectedEmployee && !canChangeTime)} value={deliveryTime} onChange={(event) => setDeliveryTime(event.target.value)} placeholder="Company default" /></label>
               <label className="form-label">Packaging<input className="form-input" disabled={Boolean(selectedEmployee && !canChangePackaging)} value={packaging} onChange={(event) => setPackaging(event.target.value)} placeholder="Company default" /></label>
             </div>
