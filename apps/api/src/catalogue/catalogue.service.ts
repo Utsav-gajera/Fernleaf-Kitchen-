@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CategoryDishAssignmentBodyDto,
@@ -167,44 +173,56 @@ export class CatalogueService {
   async createDish(data: CreateDishDto) {
     await this.validateDishRelations(data);
     const sku = data.sku?.trim() || `DISH-${Date.now()}`;
-    const dish = await this.prisma.dish.create({
-      data: {
-        sku,
-        name: data.name,
-        description: data.description,
-        image: data.imageUrl,
-        temperature: data.temperature ?? 'HOT',
-        costPriceMinor: data.costPriceMinor ?? 0,
-        stationId: data.stationId || null,
-        minQuantity: data.minQuantity ?? null,
-        isActive: data.isActive ?? true,
-      },
+    await this.assertDishSkuAvailable(sku);
+    const dish = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.dish.create({
+        data: {
+          sku,
+          name: data.name.trim(),
+          description: data.description,
+          image: data.imageUrl,
+          temperature: data.temperature ?? 'HOT',
+          costPriceMinor: data.costPriceMinor ?? 0,
+          stationId: data.stationId || null,
+          minQuantity: data.minQuantity ?? null,
+          isActive: data.isActive ?? true,
+        },
+      });
+      await this.syncDishRelations(tx, created.id, data);
+      return created;
     });
-
-    await this.syncDishRelations(dish.id, data);
     return this.ensureDish(dish.id);
   }
 
   async updateDish(id: string, data: UpdateDishDto) {
     await this.ensureDish(id);
     await this.validateDishRelations(data);
+    const sku = data.sku?.trim();
+    if (data.sku !== undefined && !sku) {
+      throw new BadRequestException('Dish SKU must not be blank.');
+    }
+    if (sku) {
+      await this.assertDishSkuAvailable(sku, id);
+    }
 
-    const updated = await this.prisma.dish.update({
-      where: { id },
-      data: {
-        sku: data.sku,
-        name: data.name,
-        description: data.description,
-        image: data.imageUrl,
-        temperature: data.temperature,
-        costPriceMinor: data.costPriceMinor,
-        stationId: data.stationId === undefined ? undefined : data.stationId || null,
-        minQuantity: data.minQuantity === undefined ? undefined : data.minQuantity ?? null,
-        isActive: data.isActive,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.dish.update({
+        where: { id },
+        data: {
+          sku,
+          name: data.name?.trim(),
+          description: data.description,
+          image: data.imageUrl,
+          temperature: data.temperature,
+          costPriceMinor: data.costPriceMinor,
+          stationId: data.stationId === undefined ? undefined : data.stationId || null,
+          minQuantity: data.minQuantity === undefined ? undefined : data.minQuantity ?? null,
+          isActive: data.isActive,
+        },
+      });
+      await this.syncDishRelations(tx, saved.id, data);
+      return saved;
     });
-
-    await this.syncDishRelations(updated.id, data);
     return this.ensureDish(updated.id);
   }
 
@@ -252,26 +270,27 @@ export class CatalogueService {
 
   async createOption(data: CreateOptionDto) {
     await this.validateOptionRelations(data);
-    const option = await this.prisma.option.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        costPriceMinor: data.costPriceMinor ?? 0,
-        isActive: data.isActive ?? true,
-      },
+    const option = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.option.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          costPriceMinor: data.costPriceMinor ?? 0,
+          isActive: data.isActive ?? true,
+        },
+      });
+      if (data.allergenIds?.length) {
+        await tx.optionAllergen.createMany({
+          data: data.allergenIds.map((allergenId) => ({ optionId: created.id, allergenId })),
+        });
+      }
+      if (data.dietaryTagIds?.length) {
+        await tx.optionDietaryTag.createMany({
+          data: data.dietaryTagIds.map((dietaryTagId) => ({ optionId: created.id, dietaryTagId })),
+        });
+      }
+      return created;
     });
-
-    if (data.allergenIds?.length) {
-      await this.prisma.optionAllergen.createMany({
-        data: data.allergenIds.map((allergenId) => ({ optionId: option.id, allergenId })),
-      });
-    }
-
-    if (data.dietaryTagIds?.length) {
-      await this.prisma.optionDietaryTag.createMany({
-        data: data.dietaryTagIds.map((dietaryTagId) => ({ optionId: option.id, dietaryTagId })),
-      });
-    }
 
     return this.prisma.option.findUnique({
       where: { id: option.id },
@@ -286,33 +305,34 @@ export class CatalogueService {
     await this.ensureOption(id);
     await this.validateOptionRelations(data);
 
-    const option = await this.prisma.option.update({
-      where: { id },
-      data: {
-        name: data.name,
-        description: data.description,
-        costPriceMinor: data.costPriceMinor,
-        isActive: data.isActive,
-      },
+    const option = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.option.update({
+        where: { id },
+        data: {
+          name: data.name,
+          description: data.description,
+          costPriceMinor: data.costPriceMinor,
+          isActive: data.isActive,
+        },
+      });
+      if (data.allergenIds !== undefined) {
+        await tx.optionAllergen.deleteMany({ where: { optionId: id } });
+        if (data.allergenIds.length) {
+          await tx.optionAllergen.createMany({
+            data: data.allergenIds.map((allergenId) => ({ optionId: id, allergenId })),
+          });
+        }
+      }
+      if (data.dietaryTagIds !== undefined) {
+        await tx.optionDietaryTag.deleteMany({ where: { optionId: id } });
+        if (data.dietaryTagIds.length) {
+          await tx.optionDietaryTag.createMany({
+            data: data.dietaryTagIds.map((dietaryTagId) => ({ optionId: id, dietaryTagId })),
+          });
+        }
+      }
+      return saved;
     });
-
-    if (data.allergenIds !== undefined) {
-      await this.prisma.optionAllergen.deleteMany({ where: { optionId: id } });
-      if (data.allergenIds.length) {
-        await this.prisma.optionAllergen.createMany({
-          data: data.allergenIds.map((allergenId) => ({ optionId: id, allergenId })),
-        });
-      }
-    }
-
-    if (data.dietaryTagIds !== undefined) {
-      await this.prisma.optionDietaryTag.deleteMany({ where: { optionId: id } });
-      if (data.dietaryTagIds.length) {
-        await this.prisma.optionDietaryTag.createMany({
-          data: data.dietaryTagIds.map((dietaryTagId) => ({ optionId: id, dietaryTagId })),
-        });
-      }
-    }
 
     return this.prisma.option.findUnique({
       where: { id: option.id },
@@ -360,41 +380,45 @@ export class CatalogueService {
   }
 
   async createOptionGroup(data: CreateOptionGroupDto) {
-    const group = await this.prisma.optionGroup.create({
-      data: {
-        name: data.name,
-        isRequired: data.isRequired ?? false,
-      },
-      include: this.optionGroupInclude,
+    if (data.optionIds !== undefined) await this.validateOptionGroupItems(data.optionIds);
+    const group = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.optionGroup.create({
+        data: { name: data.name, isRequired: data.isRequired ?? false },
+      });
+      if (data.optionIds !== undefined) {
+        await this.writeOptionGroupOptions(tx, created.id, data.optionIds);
+      }
+      return created;
     });
-
-    if (data.optionIds?.length) {
-      await this.syncOptionGroupOptions(group.id, data.optionIds);
-    }
-
     return this.ensureOptionGroup(group.id);
   }
 
   async updateOptionGroup(id: string, data: UpdateOptionGroupDto) {
     await this.ensureOptionGroup(id);
-
-    const group = await this.prisma.optionGroup.update({
-      where: { id },
-      data: {
-        name: data.name,
-        isRequired: data.isRequired,
-      },
+    if (data.optionIds !== undefined) await this.validateOptionGroupItems(data.optionIds);
+    const group = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.optionGroup.update({
+        where: { id },
+        data: { name: data.name, isRequired: data.isRequired },
+      });
+      if (data.optionIds !== undefined) {
+        await this.writeOptionGroupOptions(tx, saved.id, data.optionIds);
+      }
+      return saved;
     });
-
-    if (data.optionIds !== undefined) {
-      await this.syncOptionGroupOptions(group.id, data.optionIds);
-    }
-
     return this.ensureOptionGroup(group.id);
   }
 
   async syncOptionGroupOptions(optionGroupId: string, items: OptionGroupOptionSyncDto['items']) {
     await this.ensureOptionGroup(optionGroupId);
+    await this.validateOptionGroupItems(items);
+    await this.prisma.$transaction(async (tx) => {
+      await this.writeOptionGroupOptions(tx, optionGroupId, items);
+    });
+    return this.ensureOptionGroup(optionGroupId);
+  }
+
+  private async validateOptionGroupItems(items: OptionGroupOptionSyncDto['items']) {
     const optionIds = items.map(({ optionId }) => optionId);
     if (new Set(optionIds).size !== optionIds.length) {
       throw new BadRequestException('An option can appear only once in an option group.');
@@ -403,18 +427,24 @@ export class CatalogueService {
     if (validOptions !== optionIds.length) {
       throw new BadRequestException('One or more option-group options do not exist.');
     }
+  }
 
-    const current = await this.prisma.optionGroupOption.findMany({ where: { optionGroupId } });
+  private async writeOptionGroupOptions(
+    tx: Prisma.TransactionClient,
+    optionGroupId: string,
+    items: OptionGroupOptionSyncDto['items'],
+  ) {
+    const current = await tx.optionGroupOption.findMany({ where: { optionGroupId } });
     const nextIds = new Set(items.map(({ optionId }) => optionId));
 
     for (const currentItem of current) {
       if (!nextIds.has(currentItem.optionId)) {
-        await this.prisma.optionGroupOption.delete({ where: { id: currentItem.id } });
+        await tx.optionGroupOption.delete({ where: { id: currentItem.id } });
       }
     }
 
     for (const item of items) {
-      await this.prisma.optionGroupOption.upsert({
+      await tx.optionGroupOption.upsert({
         where: {
           optionGroupId_optionId: {
             optionGroupId,
@@ -433,8 +463,6 @@ export class CatalogueService {
         },
       });
     }
-
-    return this.ensureOptionGroup(optionGroupId);
   }
 
   async findAllAllergens() {
@@ -552,37 +580,41 @@ export class CatalogueService {
     return { categoryId, dishId, removed: true };
   }
 
-  private async syncDishRelations(dishId: string, data: Partial<CreateDishDto & UpdateDishDto>) {
+  private async syncDishRelations(
+    tx: Prisma.TransactionClient,
+    dishId: string,
+    data: Partial<CreateDishDto & UpdateDishDto>,
+  ) {
     if (data.allergenIds !== undefined) {
-      await this.prisma.dishAllergen.deleteMany({ where: { dishId } });
+      await tx.dishAllergen.deleteMany({ where: { dishId } });
       if (data.allergenIds.length) {
-        await this.prisma.dishAllergen.createMany({
+        await tx.dishAllergen.createMany({
           data: data.allergenIds.map((allergenId) => ({ dishId, allergenId })),
         });
       }
     }
 
     if (data.dietaryTagIds !== undefined) {
-      await this.prisma.dishDietaryTag.deleteMany({ where: { dishId } });
+      await tx.dishDietaryTag.deleteMany({ where: { dishId } });
       if (data.dietaryTagIds.length) {
-        await this.prisma.dishDietaryTag.createMany({
+        await tx.dishDietaryTag.createMany({
           data: data.dietaryTagIds.map((dietaryTagId) => ({ dishId, dietaryTagId })),
         });
       }
     }
 
     if (data.categoryAssignments !== undefined) {
-      const current = await this.prisma.categoryDish.findMany({ where: { dishId } });
+      const current = await tx.categoryDish.findMany({ where: { dishId } });
       const assignmentMap = new Set(data.categoryAssignments.map((item) => item.categoryId));
 
       for (const item of current) {
         if (!assignmentMap.has(item.categoryId)) {
-          await this.prisma.categoryDish.delete({ where: { id: item.id } });
+          await tx.categoryDish.delete({ where: { id: item.id } });
         }
       }
 
       for (const item of data.categoryAssignments) {
-        await this.prisma.categoryDish.upsert({
+        await tx.categoryDish.upsert({
           where: {
             categoryId_dishId: {
               categoryId: item.categoryId,
@@ -604,17 +636,17 @@ export class CatalogueService {
     }
 
     if (data.optionGroups !== undefined) {
-      const current = await this.prisma.dishOptionGroup.findMany({ where: { dishId } });
+      const current = await tx.dishOptionGroup.findMany({ where: { dishId } });
       const nextIds = new Set(data.optionGroups.map((item) => item.optionGroupId));
 
       for (const item of current) {
         if (!nextIds.has(item.optionGroupId)) {
-          await this.prisma.dishOptionGroup.delete({ where: { id: item.id } });
+          await tx.dishOptionGroup.delete({ where: { id: item.id } });
         }
       }
 
       for (const item of data.optionGroups) {
-        await this.prisma.dishOptionGroup.upsert({
+        await tx.dishOptionGroup.upsert({
           where: {
             dishId_optionGroupId: {
               dishId,
@@ -642,6 +674,16 @@ export class CatalogueService {
     await this.assertIdsExist('dietaryTag', data.dietaryTagIds);
     await this.assertIdsExist('category', data.categoryAssignments?.map((item) => item.categoryId));
     await this.assertIdsExist('optionGroup', data.optionGroups?.map((item) => item.optionGroupId));
+  }
+
+  private async assertDishSkuAvailable(sku: string, excludedDishId?: string) {
+    const existing = await this.prisma.dish.findUnique({
+      where: { sku },
+      select: { id: true },
+    });
+    if (existing && existing.id !== excludedDishId) {
+      throw new ConflictException(`Dish SKU '${sku}' already exists.`);
+    }
   }
 
   private async validateOptionRelations(data: Partial<CreateOptionDto & UpdateOptionDto>) {

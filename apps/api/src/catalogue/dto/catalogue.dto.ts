@@ -74,6 +74,7 @@ export class CreateDishDto {
 
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   sku?: string;
 
   @IsOptional()

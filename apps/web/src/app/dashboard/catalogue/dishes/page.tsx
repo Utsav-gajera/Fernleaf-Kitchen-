@@ -144,8 +144,13 @@ export default function DishesCataloguePage() {
   };
 
   const toggleDishActive = async (dishId: string) => {
-    await apiRequest(`/catalogue/dishes/${dishId}/toggle-active`, { method: 'PATCH' });
-    await loadData();
+    try {
+      setError('');
+      await apiRequest(`/catalogue/dishes/${dishId}/toggle-active`, { method: 'PATCH' });
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update dish status');
+    }
   };
 
   return (

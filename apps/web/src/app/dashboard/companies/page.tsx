@@ -451,6 +451,17 @@ export default function CompanyAdminPage() {
     }
   };
 
+  const removeAddress = async (addressId: string) => {
+    if (!selectedCompanyId) return;
+    try {
+      setError('');
+      await apiRequest(`/companies/${selectedCompanyId}/addresses/${addressId}`, { method: 'DELETE' });
+      await loadCompanies(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to remove address');
+    }
+  };
+
   const addHoliday = async () => {
     if (!selectedCompanyId || !holidayForm.date || !holidayForm.name) return;
     try {
@@ -708,7 +719,7 @@ export default function CompanyAdminPage() {
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{address.city} {address.postalCode}</div>
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
                         <button type="button" className="btn-secondary" onClick={() => setAddressForm({ ...address, id: address.id, addressLine2: address.addressLine2 ?? '', instructions: address.instructions ?? '', isDefault: Boolean(address.isDefault) })}>Edit</button>
-                        <button type="button" className="btn-secondary" onClick={async () => { await apiRequest(`/companies/${selectedCompanyId}/addresses/${address.id}`, { method: 'DELETE' }); await loadCompanies(page); }}>Delete</button>
+                        <button type="button" className="btn-secondary" onClick={() => removeAddress(address.id)}>Delete</button>
                       </div>
                     </div>
                   ))}

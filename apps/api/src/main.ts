@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
+import { PrismaExceptionFilter } from './prisma/prisma-exception.filter';
 
 const GLOBAL_RATE_LIMIT = { maxRequests: 120, windowMs: 60_000 };
 const LOGIN_RATE_LIMIT = { maxRequests: 10, windowMs: 15 * 60_000 };
@@ -82,6 +83,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(securityAndRateLimitMiddleware);
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   // Enable CORS so the Next.js frontend can communicate smoothly
   app.enableCors({

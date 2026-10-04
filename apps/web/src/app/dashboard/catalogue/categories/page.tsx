@@ -74,8 +74,13 @@ export default function CategoriesCataloguePage() {
   };
 
   const toggleActive = async (categoryId: string) => {
-    await apiRequest(`/catalogue/categories/${categoryId}/toggle-active`, { method: 'PATCH' });
-    await loadData();
+    try {
+      setError('');
+      await apiRequest(`/catalogue/categories/${categoryId}/toggle-active`, { method: 'PATCH' });
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update category status');
+    }
   };
 
   return (

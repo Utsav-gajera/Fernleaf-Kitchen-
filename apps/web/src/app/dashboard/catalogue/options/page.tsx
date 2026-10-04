@@ -97,8 +97,13 @@ export default function OptionsCataloguePage() {
   const toggleItemList = (list: string[], value: string) => list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
   const toggleActive = async (optionId: string) => {
-    await apiRequest(`/catalogue/options/${optionId}/toggle-active`, { method: 'PATCH' });
-    await loadData();
+    try {
+      setError('');
+      await apiRequest(`/catalogue/options/${optionId}/toggle-active`, { method: 'PATCH' });
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update option status');
+    }
   };
 
   return (
