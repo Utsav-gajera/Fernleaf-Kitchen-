@@ -11,6 +11,11 @@ out/
 dist/
 *.tsbuildinfo
 
+# Shared package builds into dist; do not commit source-adjacent compiler output
+packages/shared/src/index.js
+packages/shared/src/index.js.map
+packages/shared/src/index.d.ts
+
 # Environment files
 .env
 .env.local

@@ -1,16 +1,14 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { User, AuthResponse, Role } from '../types';
+import { User, AuthResponse } from '../types';
 import { apiRequest } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string, role?: Role) => Promise<void>;
   logout: () => void;
-  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,16 +51,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(data.user);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, name?: string, role?: Role) => {
-    const data = await apiRequest<AuthResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, name, role }),
-    });
-
-    localStorage.setItem('access_token', data.accessToken);
-    setUser(data.user);
-  }, []);
-
   const logout = useCallback(async () => {
     try {
       await apiRequest('/auth/logout', { method: 'POST' });
@@ -80,11 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isLoading,
       login,
-      register,
       logout,
-      isAdmin: user?.role === 'ADMIN',
     }),
-    [user, isLoading, login, register, logout],
+    [user, isLoading, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

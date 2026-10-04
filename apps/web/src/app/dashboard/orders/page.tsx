@@ -47,7 +47,6 @@ type OrderList = { items: Order[]; total: number; page: number; limit: number; t
 const money = (minor = 0) => `$${(minor / 100).toFixed(2)}`;
 const dateInput = () => new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const pastDateInput = () => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-const fieldStyle: React.CSSProperties = { width: '100%', padding: '0.7rem 0.75rem', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(15,23,42,0.45)', color: 'var(--text-main)' };
 
 export default function OrdersPage() {
   const { user, isLoading: authLoading } = useAuth();

@@ -89,7 +89,7 @@ These metrics are computed by the API. The frontend only formats their returned 
 
 Prerequisites: Node.js 20+, npm, and PostgreSQL.
 
-1. Install workspace dependencies:
+1. Install workspace dependencies from the repository root:
 
    ```bash
    npm install
@@ -167,7 +167,7 @@ apps/
     src/app/dashboard/   role and workflow screens
     src/lib/             API and access helpers
 packages/
-  shared/                shared roles, permissions, and contracts
+  shared/                shared roles and permissions
 ```
 
 ## Deployment notes

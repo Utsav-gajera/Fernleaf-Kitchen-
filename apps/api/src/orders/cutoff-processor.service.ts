@@ -17,11 +17,7 @@ export class CutoffProcessor {
 
   async process(deliveryDate: Date): Promise<CutoffProcessingResult> {
     const normalizedDate = this.normalizeDate(deliveryDate);
-    const settings = await this.prisma.platformSettings.findUnique({ where: { id: 'default' } });
-    const dateRange = this.deliveryDateRange(
-      normalizedDate,
-      settings?.kitchenTimeZone ?? 'UTC',
-    );
+    const dateRange = this.deliveryDateRange(normalizedDate);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.cutoffProcessing.create({ data: { deliveryDate: normalizedDate } });
@@ -102,47 +98,12 @@ export class CutoffProcessor {
     return value.toISOString().slice(0, 10);
   }
 
-  private deliveryDateRange(date: Date, timeZone: string): { gte: Date; lt: Date } {
-    void timeZone;
+  private deliveryDateRange(date: Date): { gte: Date; lt: Date } {
     const start = new Date(`${this.toDateKey(date)}T00:00:00.000Z`);
     return {
       gte: start,
       lt: new Date(start.getTime() + 86_400_000),
     };
-  }
-
-  private localDateTimeToInstant(
-    date: string,
-    time: string,
-    timeZone: string,
-    dayOffset = 0,
-  ): Date {
-    const [year, month, day] = date.split('-').map(Number);
-    const base = new Date(Date.UTC(year, month - 1, day + dayOffset, 0, 0));
-    let guess = base.getTime();
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hourCycle: 'h23',
-      }).formatToParts(new Date(guess));
-      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-      const localAsUtc = Date.UTC(
-        Number(values.year),
-        Number(values.month) - 1,
-        Number(values.day),
-        Number(values.hour),
-        Number(values.minute),
-        Number(values.second),
-      );
-      guess -= localAsUtc - base.getTime();
-    }
-    return new Date(guess);
   }
 
   private isUniqueViolation(error: unknown): boolean {

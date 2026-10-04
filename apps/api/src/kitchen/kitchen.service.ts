@@ -232,13 +232,6 @@ export class KitchenService {
     });
   }
 
-  private dateRange(date: string, timeZone: string) {
-    return {
-      gte: this.localDateTimeToInstant(date, timeZone),
-      lt: this.localDateTimeToInstant(this.nextDate(date), timeZone),
-    };
-  }
-
   private dateOnlyRange(date: string) {
     const start = new Date(`${date}T00:00:00.000Z`);
     return { gte: start, lt: new Date(start.getTime() + 86_400_000) };
@@ -281,27 +274,5 @@ export class KitchenService {
     }).formatToParts(new Date());
     const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
     return `${values.year}-${values.month}-${values.day}`;
-  }
-
-  private nextDate(date: string) {
-    const next = new Date(`${date}T00:00:00.000Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    return next.toISOString().slice(0, 10);
-  }
-
-  private localDateTimeToInstant(date: string, timeZone: string) {
-    const [year, month, day] = date.split('-').map(Number);
-    const base = new Date(Date.UTC(year, month - 1, day));
-    let guess = base.getTime();
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-      }).formatToParts(new Date(guess));
-      const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-      const localAsUtc = Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day), Number(values.hour), Number(values.minute), Number(values.second));
-      guess += base.getTime() - localAsUtc;
-    }
-    return new Date(guess);
   }
 }
