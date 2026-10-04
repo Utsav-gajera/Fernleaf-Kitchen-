@@ -83,6 +83,17 @@ export default function OrdersPage() {
   const [correctionReason, setCorrectionReason] = useState('');
 
   const selectedEmployee = employees.find((item) => item.id === employeeId);
+  const availableMenuDishes = useMemo(() => {
+    const dishesById = new Map<string, MenuDish>();
+    for (const category of menu?.menu.categories ?? []) {
+      for (const dish of category.dishes) {
+        if (!dishesById.has(dish.id)) {
+          dishesById.set(dish.id, dish);
+        }
+      }
+    }
+    return Array.from(dishesById.values());
+  }, [menu]);
   const isOperationalOverride = Boolean(
     selected && ['CONFIRMED', 'KITCHEN_IN_PROGRESS', 'KITCHEN_READY'].includes(selected.status),
   );
@@ -440,7 +451,7 @@ export default function OrdersPage() {
             {!isOperationalOverride && <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}><h3 style={{ fontSize: '1rem' }}>Dishes and combinations</h3><strong>{money(subtotal)}</strong></div>
               {menuLoading && <div style={{ color: 'var(--text-muted)', padding: '0.5rem 0' }}>Loading employee dishes...</div>}
-              {menu && (menu.menu?.categories ?? []).flatMap((category) => category.dishes.map((dish) => ({ categoryId: category.id, dish }))).map(({ categoryId, dish }) => <button type="button" className="btn-secondary btn-sm" key={`${categoryId}-${dish.id}`} onClick={() => addDish(dish)}><ShoppingBasket size={14} /> {dish.name}</button>)}
+              {availableMenuDishes.map((dish) => <button type="button" className="btn-secondary btn-sm" key={dish.id} onClick={() => addDish(dish)}><ShoppingBasket size={14} /> {dish.name}</button>)}
               {!lines.length ? <div style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>{employeeId ? menuLoading ? '' : menu && (menu.menu?.categories ?? []).length === 0 ? 'No dishes are available for this employee.' : 'Choose a dish from the employee menu.' : 'Select an employee to load the menu.'}</div> : lines.map((line, lineIndex) => <div key={`${line.dish.id}-${lineIndex}`} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}><strong>{line.dish.name}</strong><button type="button" className="btn-secondary btn-sm" onClick={() => setLines((current) => current.filter((_, index) => index !== lineIndex))}><XCircle size={14} /></button></div>
                 <label className="form-label" style={{ marginTop: 8 }}>Line quantity<input className="form-input" min={line.dish.minQuantity ?? 1} type="number" value={line.quantity} onChange={(event) => { const quantity = Number(event.target.value); updateLine(lineIndex, { quantity, combinations: line.combinations.map((combination, index) => index === 0 ? { ...combination, quantity } : combination) }); }} /></label>
