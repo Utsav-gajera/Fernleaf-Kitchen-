@@ -116,7 +116,15 @@ export default function DispatchPage() {
                     <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'dispatch-ready')}>Mark dispatch-ready</button>
                   </>
                 )}
-                {drop.status === 'DISPATCH_READY' && <button className="btn-primary btn-sm" onClick={() => void command(drop.id, 'out-for-delivery')}>Out for delivery</button>}
+                {drop.status === 'DISPATCH_READY' && (
+                  <>
+                    <select className="form-input" style={{ maxWidth: 260 }} value={drop.driver?.id ?? ''} onChange={(event) => { if (event.target.value) void command(drop.id, 'assign-driver', event.target.value); }}>
+                      <option value="">Assign driver</option>
+                      {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name || driver.email}</option>)}
+                    </select>
+                    <button className="btn-primary btn-sm" disabled={!drop.driver} title={drop.driver ? undefined : 'Assign a driver before sending this drop out for delivery.'} onClick={() => void command(drop.id, 'out-for-delivery')}>Out for delivery</button>
+                  </>
+                )}
                 {drop.status === 'OUT_FOR_DELIVERY' && canOverrideOrders && <button className="btn-secondary btn-sm" onClick={() => void command(drop.id, 'delivered')}>Admin override: delivered</button>}
               </div>
             </article>

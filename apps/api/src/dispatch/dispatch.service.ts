@@ -119,7 +119,7 @@ export class DispatchService {
     const drop = await this.prisma.drop.findUnique({ where: { id: dropId } });
     if (!drop) throw new NotFoundException(`Drop ${dropId} was not found.`);
     if (!this.policy.canAssignDriver(drop.status)) {
-      throw new BadRequestException('Driver assignment is only allowed before dispatch-ready.');
+      throw new BadRequestException('Driver assignment is only allowed before a drop is out for delivery.');
     }
 
     const updated = await this.prisma.drop.updateMany({

@@ -6,6 +6,6 @@ export class DispatchPolicy {
   }
 
   canAssignDriver(status: DropStatus): boolean {
-    return status === DropStatus.KITCHEN_READY;
+    return status === DropStatus.KITCHEN_READY || status === DropStatus.DISPATCH_READY;
   }
 }
