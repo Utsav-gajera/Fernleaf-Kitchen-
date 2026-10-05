@@ -72,6 +72,26 @@ test('handles month boundaries', () => {
   );
 });
 
+test('rejects working-day subtraction when no kitchen weekdays are enabled', () => {
+  const calendar = new KitchenCalendarService([], {
+    mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false,
+  });
+
+  assert.throws(
+    () => calendar.subtractWorkingDays('2026-10-07', 1),
+    /Select at least one kitchen working day/,
+  );
+  assert.equal(calendar.subtractWorkingDays('2026-10-07', 0), '2026-10-07');
+});
+
+test('supports a single kitchen working weekday and skips holidays on that weekday', () => {
+  const calendar = new KitchenCalendarService(['2026-10-07'], {
+    mon: false, tue: false, wed: true, thu: false, fri: false, sat: false, sun: false,
+  });
+
+  assert.equal(calendar.subtractWorkingDays('2026-10-08', 1), '2026-09-30');
+});
+
 test('handles year boundaries', () => {
   assert.equal(
     calculator('2024-01-01T00:00:00.000Z', 1).toISOString(),

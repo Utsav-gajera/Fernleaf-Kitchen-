@@ -52,6 +52,12 @@ export class KitchenCalendarService implements CalendarDate {
     if (!Number.isInteger(days) || days < 0) {
       throw new Error('Working-day count must be a non-negative integer');
     }
+    if (days > 0 && ![
+      this.workingDays.mon, this.workingDays.tue, this.workingDays.wed,
+      this.workingDays.thu, this.workingDays.fri, this.workingDays.sat, this.workingDays.sun,
+    ].some((enabled) => enabled === true)) {
+      throw new Error('Select at least one kitchen working day.');
+    }
 
     const cursor = parseCalendarDate(date);
     let remaining = days;

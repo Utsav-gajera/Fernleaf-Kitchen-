@@ -33,6 +33,9 @@ export class SettingsService {
   }
 
   async updateSettings(data: UpdateSettingsDto) {
+    if (![data.mon, data.tue, data.wed, data.thu, data.fri, data.sat, data.sun].some((enabled) => enabled === true)) {
+      throw new BadRequestException('Select at least one kitchen working day.');
+    }
     try {
       new Intl.DateTimeFormat('en-US', { timeZone: data.kitchenTimeZone }).format();
     } catch {

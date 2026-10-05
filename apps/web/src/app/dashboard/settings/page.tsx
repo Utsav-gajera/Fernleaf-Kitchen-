@@ -45,6 +45,10 @@ export default function SettingsPage() {
 
   const update = (key: keyof Settings, value: string | number | boolean) => setSettings((current) => ({ ...current, [key]: value }));
   const save = async () => {
+    if (![settings.mon, settings.tue, settings.wed, settings.thu, settings.fri, settings.sat, settings.sun].some((enabled) => enabled)) {
+      setMessage('Select at least one kitchen working day.');
+      return;
+    }
     setSaving(true); setMessage('');
     try {
       const {
@@ -80,7 +84,7 @@ export default function SettingsPage() {
         <div>
           <label className="form-label">Minutes needed between food being ready and dispatch<input className="form-input" type="number" min="0" max="1440" value={settings.kitchenReadyBufferMinutes} onChange={(e) => update('kitchenReadyBufferMinutes', Number(e.target.value))} /></label>
         </div>
-        <div><strong>Kitchen working days</strong><p className="help-note">Only selected days count toward the ordering deadline.</p><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>{days.map((day) => <label key={day}><input type="checkbox" checked={settings[day]} onChange={(e) => update(day, e.target.checked)} /> {({ mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' } as const)[day]}</label>)}</div></div>
+        <div><strong>Kitchen working days</strong><p className="help-note">Select at least one day. Only selected days count toward the ordering deadline.</p><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>{days.map((day) => <label key={day}><input type="checkbox" checked={settings[day]} onChange={(e) => update(day, e.target.checked)} /> {({ mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' } as const)[day]}</label>)}</div></div>
         <div><strong>Kitchen holidays</strong><div style={{ display: 'flex', gap: 8, marginTop: 8 }}><input className="form-input" type="date" value={holiday} onChange={(e) => setHoliday(e.target.value)} /><button className="btn-secondary" type="button" onClick={() => { if (holiday && !settings.kitchenHolidays.some((item) => item.date === holiday)) { setSettings((current) => ({ ...current, kitchenHolidays: [...current.kitchenHolidays, { date: holiday, name: 'Kitchen holiday' }] })); setHoliday(''); } }}>Add</button></div><div style={{ display: 'grid', gap: 6, marginTop: 8 }}>{settings.kitchenHolidays.map((item) => <div key={item.date} style={{ display: 'flex', justifyContent: 'space-between' }}>{item.date}<button className="btn-secondary btn-sm" type="button" onClick={() => setSettings((current) => ({ ...current, kitchenHolidays: current.kitchenHolidays.filter((holidayItem) => holidayItem.date !== item.date) }))}>Remove</button></div>)}</div></div>
         {message && <div className={`notice ${message === 'Settings saved.' ? '' : 'error'}`} role="status">{message}</div>}
         <button className="btn-primary" onClick={() => void save()} disabled={saving}><Save size={16} /> {saving ? 'Saving...' : 'Save settings'}</button>
